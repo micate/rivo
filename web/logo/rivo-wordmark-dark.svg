@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 480" role="img" aria-label="Rivo">
+  <defs>
+    <linearGradient id="tile" x1="80" y1="48" x2="424" y2="432" gradientUnits="userSpaceOnUse"><stop stop-color="#202631"/><stop offset="1" stop-color="#0D1117"/></linearGradient>
+    <linearGradient id="signal" x1="132" y1="108" x2="358" y2="376" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD166"/><stop offset=".52" stop-color="#FFB52E"/><stop offset="1" stop-color="#FF7A3D"/></linearGradient>
+  </defs>
+  <rect x="24" y="24" width="432" height="432" rx="101" fill="url(#tile)"/><rect x="25" y="25" width="430" height="430" rx="100" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
+  <g transform="translate(24 24) scale(.421875)"><path d="M300 768V264h244c132 0 214 69 214 176 0 105-82 174-214 174H358M540 614l218 170" fill="none" stroke="#FFB52E" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/><path d="M213 318h32M213 390h32M213 462h32" stroke="#FFD166" stroke-opacity=".54" stroke-width="18" stroke-linecap="round"/></g>
+  <text x="520" y="344" fill="#E6EAF0" font-family="Inter, SF Pro Display, Segoe UI, sans-serif" font-size="292" font-weight="650" letter-spacing="-15">Rivo</text>
+</svg>

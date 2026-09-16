@@ -6,9 +6,9 @@ import { openFile, reloadOpenTabs } from './tabs.js';
 import { drawTree, treeEl } from './tree.js';
 import { setAgentHandler, hideSelectionBar } from './selbar.js';
 
-/* px0 does not author edits. This box composes an instruction and the range it
+/* rivo does not author edits. This box composes an instruction and the range it
    is anchored to, hands both to a coding harness on this machine, and reloads
-   whatever moved once that harness exits. Because px0 dispatched the run it
+   whatever moved once that harness exits. Because rivo dispatched the run it
    knows when the work ended, so nothing here watches the filesystem. The last
    run's changes can be reverted from the footer's Undo Edit button.
 
@@ -334,7 +334,7 @@ async function finish(j) {
   setBusy(false);
   target = null;
 
-  /* Without git px0 cannot tell what the harness touched, so an empty list
+  /* Without git rivo cannot tell what the harness touched, so an empty list
      means "unknown" rather than "nothing" and everything is reloaded. */
   const changed = j.changed || [];
   if (!changed.length && j.tracked !== false) {

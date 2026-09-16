@@ -1,12 +1,12 @@
 # Operational Guidelines for AI Agents
 
-This document defines critical instructions, architectural principles, and documentation maintenance workflows for AI coding agents working on px0.
+This document defines critical instructions, architectural principles, and documentation maintenance workflows for AI coding agents working on rivo.
 
 ## 1. Core Architectural Tenets
 
-1. Edits Go Through a Harness, Never Through px0: px0 does not author, format, or save changes to project files, and reads stay its hot path. The optional agent flow ([`agent.go`](../../agent.go)) composes an instruction anchored to a line range and hands it to a coding harness already installed on the machine; that harness performs the write, and px0 reloads what moved once it exits. The one write px0 makes itself is undoing the last harness edit ([`agent_undo.go`](../../agent_undo.go)), restoring bytes it captured before the run or blobs from git. Do not introduce file modification or editor save APIs that take content from the client.
+1. Edits Go Through a Harness, Never Through rivo: rivo does not author, format, or save changes to project files, and reads stay its hot path. The optional agent flow ([`agent.go`](../../agent.go)) composes an instruction anchored to a line range and hands it to a coding harness already installed on the machine; that harness performs the write, and rivo reloads what moved once it exits. The one write rivo makes itself is undoing the last harness edit ([`agent_undo.go`](../../agent_undo.go)), restoring bytes it captured before the run or blobs from git. Do not introduce file modification or editor save APIs that take content from the client.
 1. Zero Runtime and Single Binary Footprint: Any change must compile into a single static binary (`go:embed` for web assets). Do not introduce runtime dependencies (no Node.js/npm runtime requirement, no external database, no CGO dependencies).
-1. Stateless on Disk: px0 leaves zero configuration or temporary cache artifacts on the user filesystem (no local `.px0/` folders or cache files). Edit instructions are held in memory for the life of the process and are never persisted, so there is no review or comment store to migrate. The only writes to a working tree are those made by a dispatched harness, and an undo of the last one. Undo snapshots live in memory and die with the process.
+1. Stateless on Disk: rivo leaves zero configuration or temporary cache artifacts on the user filesystem (no local `.rivo/` folders or cache files). Edit instructions are held in memory for the life of the process and are never persisted, so there is no review or comment store to migrate. The only writes to a working tree are those made by a dispatched harness, and an undo of the last one. Undo snapshots live in memory and die with the process.
 1. Performance Budgets: Indexing must complete in milliseconds using bounded concurrency (`NumCPU * 4`). File open must remain $O(1)$ relative to file length using windowed chunking (`hlChunk = 1000`) and browser DOM virtualization. Maintain explicit memory reclamation (`debug.FreeOSMemory()` on idle).
 
 ## 2. Mandatory Documentation Maintenance Protocol
@@ -34,8 +34,8 @@ Whenever modifying, adding, or refactoring code in this repository, you must aud
 
 ## 3. Checklist for Agents Prior to Submitting Work
 
-- Verification: Ran `go test ./...` and confirmed all unit/regression tests pass (`ok px0`).
-- Build Integrity: Verified successful build with `go build -o px0 .`.
+- Verification: Ran `go test ./...` and confirmed all unit/regression tests pass (`ok rivo`).
+- Build Integrity: Verified successful build with `go build -o rivo .`.
 - Web Bundling: If modifying `web/src/`, verified bundle update with `./scripts/build-web.js`.
 - Architecture Sync: Any new optimization, algorithmic adjustment, or structural change is documented in the corresponding [`docs/internals/`](../internals/README.md) write-up.
 - Flag & Shortcut Sync: Any new keyboard shortcut, UI behavior, or CLI flag is reflected in [`README.md`](../../README.md).
@@ -50,7 +50,7 @@ To quickly locate and modify UI features, refer to this structured section index
 | Section / Element ID         | Description                                                                                                                                                                                                                                                                          |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `<nav id="rail">`            | Left activity rail (switch between Explorer, Search, Outline, Theme, Shortcuts).                                                                                                                                                                                                     |
-| `<aside id="side">`          | Collapsible sidebar containing panels: `#panel-files` (tree), `#panel-search`, `#panel-outline`. Its `.panel-head` shows the workspace name (`#root-name`), the changed files filter button (`#btn-changed`), and the re-index button (`#btn-reindex`). Its `.side-foot` holds the px0 logo, the version (`#st-ver`), links to GitHub, and the theme button (`#btn-theme`). |
+| `<aside id="side">`          | Collapsible sidebar containing panels: `#panel-files` (tree), `#panel-search`, `#panel-outline`. Its `.panel-head` shows the workspace name (`#root-name`), the changed files filter button (`#btn-changed`), and the re-index button (`#btn-reindex`). Its `.side-foot` holds the rivo logo, the version (`#st-ver`), links to GitHub, and the theme button (`#btn-theme`). |
 | `<div id="resizer">`         | Draggable splitter between sidebar and main editor viewport.                                                                                                                                                                                                                         |
 | `<div id="tabs">` & `#crumbs`| Open file tabs bar and current file path breadcrumb navigation.                                                                                                                                                                                                                      |
 | `<div id="editor">`          | Core editor container with `#viewport`, `#sizer`, and virtual rows container `#rows`.                                                                                                                                                                                                |

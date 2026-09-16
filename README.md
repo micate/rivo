@@ -1,26 +1,26 @@
-# px0
+# rivo
 
-px0 is a fast, ultra-light, remote-first IDE designed for instant code navigation and review in your browser. Booting in under 1 ms and using ~20 MB of RAM, it turns your browser into a zero-latency inspection console with symbol-level navigation, deep search, and syntax highlighting across massive codebases.
+rivo is a fast, ultra-light, remote-first IDE designed for instant code navigation and review in your browser. Booting in under 1 ms and using ~20 MB of RAM, it turns your browser into a zero-latency inspection console with symbol-level navigation, deep search, and syntax highlighting across massive codebases.
 
 ## Optimized for Reads
 
 More and more code generation happens directly in the terminal—driven by coding agents, CLI tools, and background orchestrators. Developers spend significantly less time typing boilerplate and more time reviewing, auditing, and navigating.
 
-Because speed of access is everything when inspecting code, **px0 is obsessively optimized for reads.** You don't need a heavy editing environment with background extension churn just to verify code; you need a sub-millisecond, zero-latency window into the repository, especially across remote machines. When something needs to change, select it and hand it to the coding agent you already use: px0 runs it, reloads what moved, and lets you undo it.
+Because speed of access is everything when inspecting code, **rivo is obsessively optimized for reads.** You don't need a heavy editing environment with background extension churn just to verify code; you need a sub-millisecond, zero-latency window into the repository, especially across remote machines. When something needs to change, select it and hand it to the coding agent you already use: rivo runs it, reloads what moved, and lets you undo it.
 
-### Where px0 fits in best:
+### Where rivo fits in best:
 
 - **Verifying AI Agent Output**: Trace symbol references, inspect live git diffs against `HEAD`, review generated code, send a fix back to the agent from the diff, and close the tab without leaving your terminal flow.
 - **Remote & Cloud Server Inspection**: Spin up on any remote server, VM, or CI runner and browse the codebase instantly from your local browser—no SSH keys, no port forwarding hassle, and no heavy remote desktop/daemons.
 - **Auditing Large Repositories**: Read through massive, 50,000+ file codebases on a laptop without background indexers hogging RAM or spinning up fans.
-- **Sidecar to Terminal Editors**: Keep lightweight editors (like Vim, Neovim, or Helix) in the terminal for typing, while using px0 as a high-density, rich graphical inspection and diff console.
+- **Sidecar to Terminal Editors**: Keep lightweight editors (like Vim, Neovim, or Helix) in the terminal for typing, while using rivo as a high-density, rich graphical inspection and diff console.
 
 ## Installation
 
 ### Quick Install (macOS, Linux, BSD)
 
 ```bash
-curl -fsSL https://px0.ai/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/micate/rivo/master/install.sh | sh
 ```
 
 ### Build from Source
@@ -28,10 +28,10 @@ curl -fsSL https://px0.ai/install.sh | sh
 Requires Go 1.24+. No npm, node, CGO, or external dependencies:
 
 ```bash
-git clone https://github.com/px0-ai/px0.git
-cd px0
+git clone https://github.com/micate/rivo.git
+cd rivo
 make build
-install -d ~/.local/bin && install px0 ~/.local/bin/
+install -d ~/.local/bin && install rivo ~/.local/bin/
 ```
 
 To cross-compile binaries for all supported platforms:
@@ -40,13 +40,26 @@ To cross-compile binaries for all supported platforms:
 make dist
 ```
 
+### Desktop App (Wails)
+
+The native desktop shell uses Wails v3 while reusing the same Go indexer and web UI:
+
+```bash
+make desktop
+./Rivo
+```
+
+Pass one or more project directories to open them directly. The desktop app restores projects from the previous quit, keeps a removable recent-project list, provides native File/Window menus and shortcuts, and groups project windows with the native macOS tab bar. Building on Linux requires WebKitGTK; see the [Wails platform prerequisites](https://v3alpha.wails.io/getting-started/installation/).
+
+The existing `make build` target continues to produce the browser/CLI version.
+
 ## Features
 
 - **Blazing Fast Navigation**: Fuzzy file search (`Cmd/Ctrl+P`), symbol outline (`Cmd/Ctrl+Shift+O`), and workspace regex search (`Cmd/Ctrl+Shift+F`) in milliseconds.
 - **Remote-First, Zero SSH Hassle**: Spin up on any remote server, cloud instance, or runner in < 1 ms. Inspect remote code in your local browser over a single port (Tailscale, WireGuard, reverse proxy, or tunnel) without SSH key setups, port forwarding churn, or remote extension daemons.
 - **Rich Syntax Highlighting**: Native tokenization for ~280 languages via Chroma with windowed rendering.
 - **Git Awareness & Visual Diffs**: Status badges (`M`, `A`, `D`, `U`, `R`), dirty folder ancestry propagation, changed-files filter, and side-by-side / unified diffs vs `HEAD` (`Cmd/Ctrl+D`).
-- **Edit with Your Coding Agent**: Select code in the source or diff view, right-click (or `Alt+E`), and describe the change. px0 runs Claude Code, Gemini CLI, or Cursor Agent on it, reloads what changed, shows harness errors inline, and offers a one-click undo.
+- **Edit with Your Coding Agent**: Select code in the source or diff view, right-click (or `Alt+E`), and describe the change. rivo runs Claude Code, Gemini CLI, or Cursor Agent on it, reloads what changed, shows harness errors inline, and offers a one-click undo.
 - **Rendered Markdown Preview**: Full GFM preview with Chroma-highlighted code fences; switch between preview and source with `Alt+M` while preserving scroll.
 - **Custom Themes**: 14 built-in themes (Tokyo Night, Catppuccin, Dracula, GitHub Dark, Gruvbox, Nord, Solarized, and more).
 - **Optional Language Server Protocol (LSP)**: Zero-config auto-detection (`gopls`, `rust-analyzer`, `pyright`, `typescript-language-server`, `clangd`) for Go-to-Definition (`F12`), Hover, references, and call trails. Falls back automatically to regex outlines.
@@ -55,9 +68,9 @@ make dist
 
 ## Language Server (LSP) Setup (Optional)
 
-`px0` works fully out of the box without language servers using built-in fuzzy search and regex outlines.
+`rivo` works fully out of the box without language servers using built-in fuzzy search and regex outlines.
 
-When installed, language servers provide semantic Go-to-Definition (`F12`), hover types/docs, and call trails. px0 auto-detects servers on your `PATH` or standard install directories:
+When installed, language servers provide semantic Go-to-Definition (`F12`), hover types/docs, and call trails. rivo auto-detects servers on your `PATH` or standard install directories:
 
 | Language | Server | Quick Install |
 | --- | --- | --- |
@@ -73,13 +86,13 @@ When installed, language servers provide semantic Go-to-Definition (`F12`), hove
 | C# | `omnisharp` | Install OmniSharp on `PATH` |
 | LaTeX | `texlab` | `brew install texlab` |
 
-Servers spawn lazily on first request and shut down cleanly upon exit. Disable with `px0 -no-lsp`. You can also click **LSP: set up** in the status bar to view or trigger automatic installation for your OS.
+Servers spawn lazily on first request and shut down cleanly upon exit. Disable with `rivo -no-lsp`. You can also click **LSP: set up** in the status bar to view or trigger automatic installation for your OS.
 
 ## Editing with a Coding Agent (Optional)
 
-px0 does not have a text editor. It hands changes to a coding agent already installed on your machine, then reloads what the agent changed.
+rivo does not have a text editor. It hands changes to a coding agent already installed on your machine, then reloads what the agent changed.
 
-| Harness | Command px0 runs |
+| Harness | Command rivo runs |
 | --- | --- |
 | Claude Code | `claude -p --permission-mode acceptEdits {prompt}` |
 | Gemini CLI | `gemini --approval-mode auto_edit -p {prompt}` |
@@ -89,9 +102,9 @@ px0 does not have a text editor. It hands changes to a coding agent already inst
 
 1. Select code in the source view or the git diff view (split or unified, either side).
 1. Pick **Edit with Agent** from the right-click menu, the footer selection bar, or press `Alt+E`.
-1. The first time, choose a harness. The choice is remembered in `~/.px0/settings.json` (or `$XDG_CONFIG_HOME/px0/settings.json`), never inside your repository.
-1. Type what should change and press `Enter`. px0 sends the harness the instruction, the file and line range, and the selected lines.
-1. When the harness exits, px0 reloads the files it changed. Each tab stays in the view it was in: source stays source, diff stays diff.
+1. The first time, choose a harness. The choice is remembered in `~/.rivo/settings.json` (or `$XDG_CONFIG_HOME/rivo/settings.json`), never inside your repository.
+1. Type what should change and press `Enter`. rivo sends the harness the instruction, the file and line range, and the selected lines.
+1. When the harness exits, rivo reloads the files it changed. Each tab stays in the view it was in: source stays source, diff stays diff.
 
 The footer always shows the harness in use (**Agent: claude**). Click it to switch between installed harnesses.
 
@@ -107,20 +120,20 @@ After an edit that changed files, **Undo Edit** appears in the footer. It revert
 - files that already had uncommitted changes go back to how they were just before the edit,
 - files and folders the edit created are removed.
 
-Undo covers the most recent edit, once. If a file changed again after the edit, px0 asks before overwriting that later work. Undo needs a git repository.
+Undo covers the most recent edit, once. If a file changed again after the edit, rivo asks before overwriting that later work. Undo needs a git repository.
 
 ### Guards
 
 - One edit runs at a time.
 - Editing a file with uncommitted changes asks for confirmation first, since undo only reaches back one edit. Edits started from the diff view skip this: the changes are already on screen.
-- Edits and undo are accepted only from px0's own page, opened by IP address or `localhost`. Through a hostname (reverse proxy, tunnel domain) they are refused. Anyone who can reach px0 by IP can run the harness as you, so keep `-host 0.0.0.0` to private networks.
+- Edits and undo are accepted only from rivo's own page, opened by IP address or `localhost`. Through a hostname (reverse proxy, tunnel domain) they are refused. Anyone who can reach rivo by IP can run the harness as you, so keep `-host 0.0.0.0` to private networks.
 - Nothing runs until you pick a harness. `-agent` pins one for the session; `-no-agent` turns editing off.
 
 ## Why a Dedicated Code Viewer?
 
 Traditional IDEs carry tens of thousands of authoring features, Electron runtimes, background indexers, and gigabytes of memory overhead. In modern AI-assisted workflows, developers spend significantly more time reviewing code than typing it.
 
-| Parameter | Traditional IDE (e.g., VS Code) | px0 (Code Viewer) |
+| Parameter | Traditional IDE (e.g., VS Code) | rivo (Code Viewer) |
 | --- | --- | --- |
 | Primary Purpose | Manual code authoring & plugin host | Instant code reading & navigation |
 | Base Memory (RSS) | ~1,440 MB (1.4+ GB) | ~20 MB (~70x lighter) |
@@ -134,7 +147,7 @@ Traditional IDEs carry tens of thousands of authoring features, Electron runtime
 
 All metrics are measured on real-world repositories and reproducible using [`./benchmark.sh`](benchmark.sh).
 
-### Real Corpus Performance (px0 standalone)
+### Real Corpus Performance (rivo standalone)
 
 | Repository   | Source Size | Files Indexed | Index Time | Fuzzy Search | Full-Tree Regex Scan | Resident RAM (RSS) |
 | ------------ | ----------- | ------------- | ---------- | ------------ | -------------------- | ------------------ |
@@ -146,30 +159,30 @@ All metrics are measured on real-world repositories and reproducible using [`./b
 | TypeScript   | 414 MB      | 66,533        | 566 ms     | 6.2 ms       | 150.3 ms             | 69 MB              |
 | linux kernel | 1,809 MB    | 95,710        | 370 ms     | 6.0 ms       | 451.8 ms             | 55 MB              |
 
-### Head-to-Head: px0 vs. VS Code
+### Head-to-Head: rivo vs. VS Code
 
 Run `./benchmark.sh --vscode .` to measure both on your active machine:
 
 ```text
-### px0 vs. VS Code Comparison
+### rivo vs. VS Code Comparison
 
-| Metric / Parameter | px0                    | VS Code (Server/Remote) | Notes                   |
+| Metric / Parameter | rivo                    | VS Code (Server/Remote) | Notes                   |
 | ------------------ | ---------------------- | ----------------------- | ----------------------- |
 | Memory (RSS)       | 20 MB                  | 1,166 - 1,440 MB        | ~70x lighter            |
 | Instant CPU %      | 0.0%                   | 4.0% - 39.0%            | Minimal CPU churn       |
-| Index Time         | < 1 ms                 | ~4 - 10 s               | px0 is instantaneous    |
+| Index Time         | < 1 ms                 | ~4 - 10 s               | rivo is instantaneous    |
 | Process Count      | 1 single Go binary     | 15+ processes           | Multi-process Node tree |
 ```
 
 ## Usage
 
-Run `px0` with an optional file or directory:
+Run `rivo` with an optional file or directory:
 
 ```bash
-px0                     # view current workspace
-px0 ~/src/kernel        # view another repository
-px0 web/src/main.js     # view a file in its project workspace
-px0 main.go:42          # open directly to a line number
+rivo                     # view current workspace
+rivo ~/src/kernel        # view another repository
+rivo web/src/main.js     # view a file in its project workspace
+rivo main.go:42          # open directly to a line number
 ```
 
 ### Remote & Cloud Workspaces
@@ -178,26 +191,26 @@ Spin up on any remote server, VM, or container and view code directly in your lo
 
 ```bash
 # Bind all interfaces on a remote machine / cloud instance
-px0 -host 0.0.0.0 -port 7777 ~/work/repo
+rivo -host 0.0.0.0 -port 7777 ~/work/repo
 
 # Headless / server mode without opening local browser
-px0 -no-open -port 8080 /workspace
+rivo -no-open -port 8080 /workspace
 
 # In Docker / CI runner
-docker run -p 7777:7777 -v $(pwd):/src px0:latest
+docker run -p 7777:7777 -v $(pwd):/src rivo:latest
 ```
 
-Access securely over Tailscale, WireGuard, reverse proxy, or Cloudflare Tunnel with zero remote setup overhead and sandboxing (path traversal protection & DNS rebinding checks). Anyone who can reach px0 can dispatch agent edits when it is opened by IP address (for example over Tailscale), so bind to a private network. Opened through a hostname, such as a reverse proxy or tunnel domain, editing is refused.
+Access securely over Tailscale, WireGuard, reverse proxy, or Cloudflare Tunnel with zero remote setup overhead and sandboxing (path traversal protection & DNS rebinding checks). Anyone who can reach rivo can dispatch agent edits when it is opened by IP address (for example over Tailscale), so bind to a private network. Opened through a hostname, such as a reverse proxy or tunnel domain, editing is refused.
 
-### Updating px0
+### Updating rivo
 
-To check for updates and automatically upgrade `px0` to the latest release:
+To check for updates and automatically upgrade `rivo` to the latest release:
 
 ```bash
-px0 --update
+rivo --update
 ```
 
-`px0` also checks asynchronously in the background once every 24 hours without delaying startup (<1 ms) and notifies you on stderr when an update is available.
+`rivo` also checks asynchronously in the background once every 24 hours without delaying startup (<1 ms) and notifies you on stderr when an update is available.
 
 ### CLI Flags
 
@@ -250,14 +263,14 @@ px0 --update
 
 ## Philosophy and Design Principles
 
-- **Optimized for Reads**: px0 does not attempt to be a heavy code editor. Code authoring belongs to AI agents, CLI tools, or dedicated editors. px0 focuses on the reader experience, and changes go through the coding agent you choose, never through a save button.
+- **Optimized for Reads**: rivo does not attempt to be a heavy code editor. Code authoring belongs to AI agents, CLI tools, or dedicated editors. rivo focuses on the reader experience, and changes go through the coding agent you choose, never through a save button.
 - **Remote-First & SSH-Free**: Works seamlessly whether inspecting a local directory or a cloud instance over Tailscale/VPN—no remote daemons, no X11 forwarding, and no SSH session maintenance.
 - **Private & Sandboxed**: Zero accounts, zero cloud dependencies. Code and queries stay on the running machine. Protected by path traversal guards and DNS rebinding prevention.
 - **Reclaims Memory**: Automatically recovers memory after 15 seconds of inactivity so idle sessions don't hoard host RAM.
 
 ### Telemetry & Privacy
 
-px0 collects lightweight, anonymous backend session metrics (via PostHog) strictly to calculate DAU/MAU and session duration (start time and stop time).
+rivo collects lightweight, anonymous backend session metrics (via PostHog) strictly to calculate DAU/MAU and session duration (start time and stop time).
 
 **What is NEVER collected:**
 - No feature interactions, user actions, or command activity
@@ -269,8 +282,8 @@ px0 collects lightweight, anonymous backend session metrics (via PostHog) strict
 
 **How to opt out:**
 You can disable telemetry completely at any time through any of the following:
-- CLI flag: `px0 -no-telemetry`
-- Environment variable: `export DO_NOT_TRACK=1` or `export PX0_TELEMETRY=0`
+- CLI flag: `rivo -no-telemetry`
+- Environment variable: `export DO_NOT_TRACK=1` or `export RIVO_TELEMETRY=0`
 
 
 ## Reproducing Benchmarks
@@ -284,7 +297,7 @@ All benchmark figures can be measured directly on your own system:
 # 2. Run the full benchmark suite
 ./benchmark.sh
 
-# 3. Compare px0 directly against VS Code process tree on your workspace
+# 3. Compare rivo directly against VS Code process tree on your workspace
 ./benchmark.sh --vscode .
 
 # 4. Profile memory lifecycle across index, search, and idle recovery
@@ -298,14 +311,14 @@ See [Performance Benchmarks](BENCHMARKS.md) for full methodology and detailed ch
 
 ## Contributing
 
-Contributions that keep px0 fast, minimal, and dependable are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting issues or pull requests.
+Contributions that keep rivo fast, minimal, and dependable are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting issues or pull requests.
 
 ### Development Workflow
 
 1. Clone the repository:
   ```bash
-  git clone https://github.com/px0-ai/px0.git
-  cd px0
+  git clone https://github.com/micate/rivo.git
+  cd rivo
   ```
 1. Run tests:
   ```bash

@@ -1,6 +1,6 @@
 # Performance Benchmarks & Methodology
 
-This document outlines how px0 measures performance, documents its scores across real-world repositories, and breaks down comparative resource consumption against VS Code.
+This document outlines how rivo measures performance, documents its scores across real-world repositories, and breaks down comparative resource consumption against VS Code.
 
 ## 1. Requirements
 
@@ -14,7 +14,7 @@ This document outlines how px0 measures performance, documents its scores across
 ### 1. Build the binary
 
 ```bash
-go build -o px0 .
+go build -o rivo .
 ```
 
 ### 2. Fetch the standard corpus
@@ -27,7 +27,7 @@ Clones shallow copies (`--depth 1`) of seven diverse open-source repositories:
 
 ### 3. Execute benchmark suite
 
-Spawns an isolated px0 server process per repository, records metrics, and terminates the instance:
+Spawns an isolated rivo server process per repository, records metrics, and terminates the instance:
 
 ```bash
 ./benchmark.sh
@@ -73,11 +73,11 @@ Measured on Linux x86_64 with language servers disabled (`-no-lsp`):
 - `Base Mem`: Resident memory (RSS) after indexing.
 - `Peak Mem`: Peak memory during aggressive search and navigation prior to idle scavenging.
 
-## 5. px0 vs. VS Code Process Comparison
+## 5. rivo vs. VS Code Process Comparison
 
 Side-by-side comparison on identical Linux hardware:
 
-| Metric / Parameter          | px0                    | VS Code (Remote / Server)     | Difference                   |
+| Metric / Parameter          | rivo                    | VS Code (Remote / Server)     | Difference                   |
 | --------------------------- | ---------------------- | ----------------------------- | ---------------------------- |
 | Base RSS Memory             | ~15 - 18 MB            | ~1,160 - 1,440 MB             | ~75x - 90x lighter           |
 | Idle Background Memory      | ~16 MB                 | ~1,440 MB                     | Stable & scavenged           |
@@ -102,7 +102,7 @@ PID     Role / Component                 RSS (MB)   CPU %
 388708  Integrated Terminal (bash)       8.9 MB     0.0%
 ```
 
-In contrast, px0 embeds indexing, fuzzy search, syntax highlighting, and server endpoints inside a single native process.
+In contrast, rivo embeds indexing, fuzzy search, syntax highlighting, and server endpoints inside a single native process.
 
 ## 6. Memory Scavenging Verification
 
@@ -123,4 +123,4 @@ To observe resident memory scavenging in real time, run:
   30 seconds idle                    57 MB
 ```
 
-After 15 seconds of inactivity, px0 triggers `debug.FreeOSMemory()`, returning unused heap pages back to the Linux kernel and settling back to baseline.
+After 15 seconds of inactivity, rivo triggers `debug.FreeOSMemory()`, returning unused heap pages back to the Linux kernel and settling back to baseline.

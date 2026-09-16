@@ -1,6 +1,6 @@
 # Harness Editing & Agent Dispatch
 
-This document describes the design and implementation of px0's editing flow:
+This document describes the design and implementation of rivo's editing flow:
 
 - dispatch and change detection: [`agent.go`](../../agent.go)
 - undo: [`agent_undo.go`](../../agent_undo.go)
@@ -8,26 +8,26 @@ This document describes the design and implementation of px0's editing flow:
 - the instruction composer, footer controls and undo button: [`web/src/agent.js`](../../web/src/agent.js)
 - the selection bar and right-click menu that start an edit: [`web/src/selbar.js`](../../web/src/selbar.js)
 
-Harnesses are discovered automatically, the same way language servers are. Editing becomes available as soon as px0 finds one installed, but nothing ever runs until the user picks one, and that choice is remembered between runs. `-no-agent` removes the feature entirely; `-agent` pins a harness for scripted use and takes the choice away from the UI.
+Harnesses are discovered automatically, the same way language servers are. Editing becomes available as soon as rivo finds one installed, but nothing ever runs until the user picks one, and that choice is remembered between runs. `-no-agent` removes the feature entirely; `-agent` pins a harness for scripted use and takes the choice away from the UI.
 
 ## 1. The Dispatcher Model
 
-px0 does not author changes. No endpoint accepts file content, and the only write px0 makes itself is an undo putting back what a harness changed (section 7).
+rivo does not author changes. No endpoint accepts file content, and the only write rivo makes itself is an undo putting back what a harness changed (section 7).
 
 Editing works by delegation:
 
 1. The user selects a range, in the code view or the diff view, and writes an instruction anchored to it.
-2. px0 composes a prompt from that instruction plus the referenced source.
-3. px0 snapshots what it needs to undo the run, then spawns a coding harness already installed on the machine, with the workspace as its working directory.
+2. rivo composes a prompt from that instruction plus the referenced source.
+3. rivo snapshots what it needs to undo the run, then spawns a coding harness already installed on the machine, with the workspace as its working directory.
 4. The harness makes the change.
-5. px0 works out what moved, reloads it in place, and offers to undo it.
+5. rivo works out what moved, reloads it in place, and offers to undo it.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as User
     participant UI as Browser (agent.js)
-    participant S as px0 server (agent.go)
+    participant S as rivo server (agent.go)
     participant H as Harness (claude, gemini, ...)
     participant G as git CLI
 
@@ -90,8 +90,8 @@ The chosen harness is always visible in the footer as `Agent: <name>` (`data-act
 The choice is written to:
 
 ```
-$XDG_CONFIG_HOME/px0/settings.json     # when XDG_CONFIG_HOME is set
-~/.px0/settings.json                   # otherwise
+$XDG_CONFIG_HOME/rivo/settings.json     # when XDG_CONFIG_HOME is set
+~/.rivo/settings.json                   # otherwise
 ```
 
 ```json
@@ -100,7 +100,7 @@ $XDG_CONFIG_HOME/px0/settings.json     # when XDG_CONFIG_HOME is set
 }
 ```
 
-This follows `stateFilePath` in [`update.go`](../../update.go) and sits beside the anonymous ID written by [`telemetry.go`](../../telemetry.go). px0 never writes its own state into a working tree: there is no `.px0/` directory in the repository.
+This follows `stateFilePath` in [`update.go`](../../update.go) and sits beside the anonymous ID written by [`telemetry.go`](../../telemetry.go). rivo never writes its own state into a working tree: there is no `.rivo/` directory in the repository.
 
 A corrupt or stale settings file is never an error. If the saved harness has since been uninstalled it simply resolves to nothing selected, and the picker appears again.
 
@@ -119,10 +119,10 @@ Every supported harness starts an interactive session by default and blocks on a
 A full command template is accepted anywhere a harness name is, and must contain `{prompt}`:
 
 ```bash
-px0 -agent "claude -p --permission-mode acceptEdits {prompt}"
+rivo -agent "claude -p --permission-mode acceptEdits {prompt}"
 ```
 
-The template is split on whitespace, and `{prompt}` is substituted inside each token, so both `{prompt}` and `--prompt={prompt}` work. Presets are a convenience, not a coupling: because a template is always available, a harness that changes its flags is a one-line fix by the user rather than a px0 release.
+The template is split on whitespace, and `{prompt}` is substituted inside each token, so both `{prompt}` and `--prompt={prompt}` work. Presets are a convenience, not a coupling: because a template is always available, a harness that changes its flags is a one-line fix by the user rather than a rivo release.
 
 The binary is resolved before a harness can be selected, so a typo or an uninstalled tool fails at the point of choosing rather than on first use.
 
@@ -132,7 +132,7 @@ The binary is resolved before a harness can be selected, so a typo or an uninsta
 
 ### Output and Failures
 
-Stdout and stderr are captured separately into two `tailBuffer`s. The job snapshot carries both (`stdout`, `stderr`, and `log` as an alias of stdout), and a failed run also prints them to the terminal px0 runs in.
+Stdout and stderr are captured separately into two `tailBuffer`s. The job snapshot carries both (`stdout`, `stderr`, and `log` as an alias of stdout), and a failed run also prints them to the terminal rivo runs in.
 
 A failed job comes back from `/api/agent/job` with an `error` field. The shared `request()` helper in `state.js` turns any `error` into a thrown `Error`, and attaches the parsed body as `e.body`. The poller recognises a job body there and hands it to `finish()` like any other result. The composer then shows the failure inline, under the instruction: the error line, then stderr and stdout in their own labelled blocks. A failure is never only a toast, because the harness's own output is usually the only explanation (an invalid API key, a missing login).
 
@@ -165,7 +165,7 @@ Outside a git repository there is no status to compare, so the job reports `trac
 
 ## 7. Undo
 
-A harness writes straight to disk, and when a file already held uncommitted work git cannot give the old bytes back. So undo is built from a snapshot px0 takes itself.
+A harness writes straight to disk, and when a file already held uncommitted work git cannot give the old bytes back. So undo is built from a snapshot rivo takes itself.
 
 ### Before the Run: `capturePreEdit`
 
@@ -216,7 +216,7 @@ The frontend's `reloadWorkspace()` then reloads in dependency order: `/api/reind
 
 ### No File Watcher
 
-px0 dispatched the harness, so it knows when the work ended. Completion is detected by the process exiting, not by watching the filesystem. There is no `fsnotify` dependency, no polling of the tree, and the single-binary, zero-dependency footprint is unchanged.
+rivo dispatched the harness, so it knows when the work ended. Completion is detected by the process exiting, not by watching the filesystem. There is no `fsnotify` dependency, no polling of the tree, and the single-binary, zero-dependency footprint is unchanged.
 
 ## 9. HTTP Surface
 
@@ -256,11 +256,11 @@ Every mutating endpoint is guarded by `localPost` ([`lspsetup.go`](../../lspsetu
 
 ### Security Posture
 
-The edit endpoint runs a general-purpose coding agent with shell access as the user who started px0, and undo writes to the workspace. `localPost` restricts both to px0's own page reached by IP address or `localhost`. That shuts out other websites and DNS rebinding, and makes editing unavailable through the hostname-based tunnels and reverse proxies described in the README. It is not authentication: with `-host 0.0.0.0`, anyone who can reach px0 by IP, for example over Tailscale, can dispatch an edit. Exposing editing beyond a trusted network requires an authentication story px0 does not yet have.
+The edit endpoint runs a general-purpose coding agent with shell access as the user who started rivo, and undo writes to the workspace. `localPost` restricts both to rivo's own page reached by IP address or `localhost`. That shuts out other websites and DNS rebinding, and makes editing unavailable through the hostname-based tunnels and reverse proxies described in the README. It is not authentication: with `-host 0.0.0.0`, anyone who can reach rivo by IP, for example over Tailscale, can dispatch an edit. Exposing editing beyond a trusted network requires an authentication story rivo does not yet have.
 
-The explicit first-run pick matters for the same reason. Auto-enabling on discovery would mean any px0 instance on a machine with a harness installed is a code execution endpoint that nobody opted into.
+The explicit first-run pick matters for the same reason. Auto-enabling on discovery would mean any rivo instance on a machine with a harness installed is a code execution endpoint that nobody opted into.
 
-Undo only ever writes paths that git reported as changed by the run, and restores them from bytes px0 captured itself or from the starting commit. It never takes content or paths from the client.
+Undo only ever writes paths that git reported as changed by the run, and restores them from bytes rivo captured itself or from the starting commit. It never takes content or paths from the client.
 
 ## 10. Limits
 

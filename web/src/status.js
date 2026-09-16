@@ -48,7 +48,7 @@ export function updateStatus() {
   const verEl = $('#st-ver');
   if (verEl && S.meta?.version) {
     verEl.textContent = 'v' + S.meta.version;
-    verEl.title = `px0 v${S.meta.version} (Click for shortcuts & help)`;
+    verEl.title = `rivo v${S.meta.version} (Click for shortcuts & help)`;
   }
   drawLspStatus();
 }

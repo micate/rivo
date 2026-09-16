@@ -23,7 +23,7 @@ export function layout() {
 export function toggleWordWrap(forced) {
   S.wrap = typeof forced === 'boolean' ? forced : !S.wrap;
   document.body.classList.toggle('word-wrap', S.wrap);
-  try { localStorage.setItem('px0.wrap', S.wrap ? 'true' : 'false'); } catch {}
+  try { localStorage.setItem('rivo.wrap', S.wrap ? 'true' : 'false'); } catch {}
   updateEditorOptionControls();
   layout();
   render();
@@ -32,7 +32,7 @@ export function toggleWordWrap(forced) {
 export function toggleLineNumbers(forced) {
   S.lineNumbers = typeof forced === 'boolean' ? forced : !S.lineNumbers;
   document.body.classList.toggle('hide-lines', !S.lineNumbers);
-  try { localStorage.setItem('px0.lineNumbers', S.lineNumbers ? 'true' : 'false'); } catch {}
+  try { localStorage.setItem('rivo.lineNumbers', S.lineNumbers ? 'true' : 'false'); } catch {}
   updateEditorOptionControls();
   layout();
   render();

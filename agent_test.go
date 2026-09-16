@@ -79,7 +79,7 @@ func TestAgentSpecResolution(t *testing.T) {
 	if _, err := newAgentManager(root, "echo hello", nil); err == nil {
 		t.Fatal("a template without {prompt} should be refused")
 	}
-	if _, err := newAgentManager(root, "px0-not-a-real-binary {prompt}", nil); err == nil {
+	if _, err := newAgentManager(root, "rivo-not-a-real-binary {prompt}", nil); err == nil {
 		t.Fatal("a missing binary should be refused at startup, not on first use")
 	}
 
@@ -138,7 +138,7 @@ func TestAgentSelectPersistsOutsideWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Select("px0-not-a-real-binary"); err == nil {
+	if err := m.Select("rivo-not-a-real-binary"); err == nil {
 		t.Fatal("selecting something that is not installed should fail")
 	}
 
@@ -150,7 +150,7 @@ func TestAgentSelectPersistsOutsideWorkspace(t *testing.T) {
 		t.Fatalf("selected = %q, want echo", m.Name())
 	}
 
-	if _, err := os.Stat(filepath.Join(cfg, "px0", "settings.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(cfg, "rivo", "settings.json")); err != nil {
 		t.Fatalf("settings file not written: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "settings.json")); !os.IsNotExist(err) {
@@ -275,7 +275,7 @@ func TestAgentEditRunsHarnessAndReportsChange(t *testing.T) {
 	}
 }
 
-// Outside a repository px0 cannot name what a harness touched. The job must say
+// Outside a repository rivo cannot name what a harness touched. The job must say
 // so, because an empty change list would otherwise read as "nothing happened"
 // and the client would skip the reload after a real edit.
 func TestAgentOutsideGitReportsUnknownChanges(t *testing.T) {

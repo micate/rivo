@@ -15,7 +15,7 @@ import (
 
 // Undo for the most recent agent edit. A harness writes straight to disk, and
 // when the file already held uncommitted work git cannot give the old bytes
-// back. So before each run px0 keeps a copy of every file git lists as dirty,
+// back. So before each run rivo keeps a copy of every file git lists as dirty,
 // and after it builds a plan that puts back exactly the paths the run changed:
 //
 //   - dirty before: the copy taken before the run

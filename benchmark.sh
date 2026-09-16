@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Benchmark px0 against real repositories.
+# Benchmark rivo against real repositories.
 #
 # Every number printed here comes from a running server: timings from curl,
 # memory from /proc, index size from the server's own /api/meta.
@@ -7,7 +7,7 @@ set -u
 unalias find 2>/dev/null || true
 unset -f find 2>/dev/null || true
 
-BIN=${BIN:-./px0}
+BIN=${BIN:-./rivo}
 CORPUS=${CORPUS:-./bench-repos}
 PORT=${PORT:-7900}
 RUNS=${RUNS:-5}
@@ -32,9 +32,9 @@ modes:
   --clone           fetch the standard corpus into ./bench-repos (about 3 GB)
   --memory          trace resident memory through index, search and file open
   --lsp             time go-to-definition, references, hover and outline
-  --vscode          measure and compare running VS Code process tree vs px0
+  --vscode          measure and compare running VS Code process tree vs rivo
   --vscode-vanilla  spawn isolated vanilla VS Code (no extensions) & measure
-  --editors         compare px0 vs VS Code (running & vanilla), Neovim, Vim, etc.
+  --editors         compare rivo vs VS Code (running & vanilla), Neovim, Vim, etc.
   --help            show this
 
 examples:
@@ -49,7 +49,7 @@ examples:
   RUNS=20 ./benchmark.sh bench-repos/redis
 
 environment:
-  BIN=./px0             binary to measure
+  BIN=./rivo             binary to measure
   CORPUS=./bench-repos  where the corpus lives
   PORT=7900             first port to use, incremented per repo
   RUNS=5                requests per timing, the fastest is reported
@@ -77,7 +77,7 @@ clone_corpus() {
 # start DIR PORT [extra flags...] - echoes the pid, waits until it answers
 start_server() {
   local dir=$1 port=$2; shift 2
-  "$BIN" -no-open -port "$port" "$@" "$dir" >"/tmp/px0-bench-$port.log" 2>&1 &
+  "$BIN" -no-open -port "$port" "$@" "$dir" >"/tmp/rivo-bench-$port.log" 2>&1 &
   local pid=$!
   local i
   for i in $(seq 100); do
@@ -103,13 +103,13 @@ best_ms() {
 rss_mb() { awk '/VmRSS/{printf "%.0f", $2/1024}' "/proc/$1/status" 2>/dev/null || echo "?"; }
 
 # The biggest source file in the tree, which is the worst case for opening.
-# Skips what px0 itself skips, so the file picked is one the index holds.
+# Skips what rivo itself skips, so the file picked is one the index holds.
 biggest_file() {
   local dir=$1 corpus_abs
   local -a prune=()
   corpus_abs=$(cd "$CORPUS" 2>/dev/null && pwd) || corpus_abs=""
   # Prune the corpus only when it sits inside the tree being measured, which is
-  # the case when you point the script at px0's own directory.
+  # the case when you point the script at rivo's own directory.
   case "$corpus_abs" in
     "$dir"/*) prune=(-not -path "$corpus_abs/*") ;;
   esac
@@ -204,7 +204,7 @@ bench_memory() {
     printf '  %-34s %s MB\n' "after scrolling through it" "$(rss_mb "$pid")"
   fi
   # Resident memory includes pages the Go runtime has freed but not yet handed
-  # back. px0 returns them once it has been idle for a while, so wait long
+  # back. rivo returns them once it has been idle for a while, so wait long
   # enough to see the steady state rather than the high-water mark.
   sleep 8
   printf '  %-34s %s MB\n' "8 seconds idle" "$(rss_mb "$pid")"
@@ -274,7 +274,7 @@ bench_lsp() {
   printf '  %-26s %s ms\n' "find all references" "$(best_ms "$base/api/lsp/refs?$q")"
   printf '  %-26s %s ms\n' "hover" "$(best_ms "$base/api/lsp/hover?$q")"
   printf '  %-26s %s ms\n' "document outline" "$(best_ms "$base/api/lsp/symbols?path=$(urlenc "$probe")")"
-  printf '  %-26s %s MB   (px0 only; servers are separate processes)\n' "px0 memory" "$(rss_mb "$pid")"
+  printf '  %-26s %s MB   (rivo only; servers are separate processes)\n' "rivo memory" "$(rss_mb "$pid")"
   local g
   g=$(pgrep -x gopls 2>/dev/null | head -1)
   [ -n "$g" ] && printf '  %-26s %s MB\n' "gopls memory" "$(rss_mb "$g")"
@@ -286,16 +286,16 @@ bench_lsp() {
 bench_vscode() {
   local target=${1:-.}
   local port=$PORT
-  echo "### Measuring px0 on $target ..."
+  echo "### Measuring rivo on $target ..."
   local pid
-  pid=$(start_server "$target" "$port" -quiet) || die "failed to start px0 on port $port"
+  pid=$(start_server "$target" "$port" -quiet) || die "failed to start rivo on port $port"
   sleep 1
-  local px0_rss px0_meta
-  px0_rss=$(rss_mb "$pid")
-  px0_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
-  local px0_files px0_idx
-  px0_files=$(echo "$px0_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
-  px0_idx=$(echo "$px0_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
+  local rivo_rss rivo_meta
+  rivo_rss=$(rss_mb "$pid")
+  rivo_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
+  local rivo_files rivo_idx
+  rivo_files=$(echo "$rivo_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
+  rivo_idx=$(echo "$rivo_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 
   python3 -c "
@@ -368,16 +368,16 @@ for pid, info in p2.items():
 breakdown.sort(reverse=True, key=lambda x: x[0])
 total_vs_mb = total_vs_rss / 1024.0
 
-px0_mem = $px0_rss
-px0_files = '$px0_files'
-px0_idx = '$px0_idx'
+rivo_mem = $rivo_rss
+rivo_files = '$rivo_files'
+rivo_idx = '$rivo_idx'
 
-print('\n### px0 vs. VS Code Comparison\n')
-print('| Metric / Parameter | px0 | VS Code (Server/Remote) | Notes |')
+print('\n### rivo vs. VS Code Comparison\n')
+print('| Metric / Parameter | rivo | VS Code (Server/Remote) | Notes |')
 print('| ------------------ | --- | ----------------------- | ----- |')
-print(f'| **Memory (RSS)** | **{px0_mem} MB** | **{total_vs_mb:.1f} MB** | {total_vs_mb/max(1, px0_mem):.0f}x lighter |')
+print(f'| **Memory (RSS)** | **{rivo_mem} MB** | **{total_vs_mb:.1f} MB** | {total_vs_mb/max(1, rivo_mem):.0f}x lighter |')
 print(f'| **Instant CPU %** | **0.0%** | **{total_vs_cpu:.1f}%** | Measured over 1s |')
-print(f'| **Index Time** | **{px0_idx} ms** ({px0_files} files) | **~4 - 10 s** | px0 is immediate |')
+print(f'| **Index Time** | **{rivo_idx} ms** ({rivo_files} files) | **~4 - 10 s** | rivo is immediate |')
 print(f'| **Process Count** | **1 single Go binary** | **{len(p2)} processes** | Multi-process Node tree |')
 
 if breakdown:
@@ -394,16 +394,16 @@ bench_vscode_vanilla() {
   local abs_target
   abs_target=$(cd "$target" 2>/dev/null && pwd) || abs_target="$target"
   local port=$PORT
-  echo "### Measuring px0 on $abs_target ..."
+  echo "### Measuring rivo on $abs_target ..."
   local pid
-  pid=$(start_server "$abs_target" "$port" -quiet) || die "failed to start px0 on port $port"
+  pid=$(start_server "$abs_target" "$port" -quiet) || die "failed to start rivo on port $port"
   sleep 1
-  local px0_rss px0_meta
-  px0_rss=$(rss_mb "$pid")
-  px0_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
-  local px0_files px0_idx
-  px0_files=$(echo "$px0_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
-  px0_idx=$(echo "$px0_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
+  local rivo_rss rivo_meta
+  rivo_rss=$(rss_mb "$pid")
+  rivo_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
+  local rivo_files rivo_idx
+  rivo_files=$(echo "$rivo_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
+  rivo_idx=$(echo "$rivo_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 
   echo "### Spawning Vanilla VS Code (no extensions, clean user-data-dir) on $abs_target ..."
@@ -414,9 +414,9 @@ tmp_user = tempfile.mkdtemp(prefix='vscode_bench_user_')
 tmp_ext = tempfile.mkdtemp(prefix='vscode_bench_ext_')
 
 target_path = '$abs_target'
-px0_mem = $px0_rss
-px0_files = '$px0_files'
-px0_idx = '$px0_idx'
+rivo_mem = $rivo_rss
+rivo_files = '$rivo_files'
+rivo_idx = '$rivo_idx'
 
 # Locate VS Code executable
 code_bin = shutil.which('code')
@@ -478,11 +478,11 @@ def get_proc_info(pids):
 vs_rss, breakdown = get_proc_info(new_pids)
 breakdown.sort(reverse=True, key=lambda x: x[0])
 
-print('\n### px0 vs. Vanilla VS Code Comparison\n')
-print('| Metric / Parameter | px0 | Vanilla VS Code (Clean) | Difference |')
+print('\n### rivo vs. Vanilla VS Code Comparison\n')
+print('| Metric / Parameter | rivo | Vanilla VS Code (Clean) | Difference |')
 print('| ------------------ | --- | ----------------------- | ---------- |')
-print(f'| **Memory (RSS)** | **{px0_mem} MB** | **{vs_rss:.1f} MB** | {vs_rss/max(1, px0_mem):.0f}x lighter |')
-print(f'| **Index Time** | **{px0_idx} ms** ({px0_files} files) | **~2 - 5 s** | px0 is immediate |')
+print(f'| **Memory (RSS)** | **{rivo_mem} MB** | **{vs_rss:.1f} MB** | {vs_rss/max(1, rivo_mem):.0f}x lighter |')
+print(f'| **Index Time** | **{rivo_idx} ms** ({rivo_files} files) | **~2 - 5 s** | rivo is immediate |')
 print(f'| **Process Count** | **1 single Go binary** | **{len(new_pids)} processes** | Multi-process tree |')
 print(f'| **Extensions** | Native built-ins | Disabled (0 active) | Clean isolate |')
 
@@ -506,26 +506,26 @@ bench_editors() {
   local port=$PORT
   echo "### Measuring editors on: $abs_target"
   local pid
-  pid=$(start_server "$abs_target" "$port" -quiet) || die "failed to start px0 on port $port"
+  pid=$(start_server "$abs_target" "$port" -quiet) || die "failed to start rivo on port $port"
   sleep 1
-  local px0_rss px0_meta
-  px0_rss=$(rss_mb "$pid")
-  px0_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
-  local px0_files px0_idx
-  px0_files=$(echo "$px0_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
-  px0_idx=$(echo "$px0_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
+  local rivo_rss rivo_meta
+  rivo_rss=$(rss_mb "$pid")
+  rivo_meta=$(curl -sf "http://127.0.0.1:$port/api/meta" || echo '{"files":0,"indexMs":0}')
+  local rivo_files rivo_idx
+  rivo_files=$(echo "$rivo_meta" | sed 's/.*"files":\([0-9]*\).*/\1/')
+  rivo_idx=$(echo "$rivo_meta" | sed 's/.*"indexMs":\([0-9]*\).*/\1/')
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 
   python3 -c "
 import subprocess, time, shutil, tempfile, os
 
 target = '$abs_target'
-px0_mem = $px0_rss
-px0_files = '$px0_files'
-px0_idx = '$px0_idx'
+rivo_mem = $rivo_rss
+rivo_files = '$rivo_files'
+rivo_idx = '$rivo_idx'
 
 results = []
-results.append(('px0', 'Single native Go server', f'{px0_mem} MB', f'{px0_idx} ms', '1 process (native)'))
+results.append(('rivo', 'Single native Go server', f'{rivo_mem} MB', f'{rivo_idx} ms', '1 process (native)'))
 
 # 1. Check running VS Code (configured with user extensions)
 try:
@@ -608,24 +608,24 @@ case "${1-}" in
   --help|-h) usage; exit 0 ;;
   --clone)   clone_corpus; exit 0 ;;
   --memory)  shift; [ $# -gt 0 ] || set -- "$CORPUS"/*/
-             [ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+             [ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
              for t in "$@"; do bench_memory "${t%/}"; done; exit 0 ;;
   --lsp)     shift; [ $# -gt 0 ] || set -- .
-             [ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+             [ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
              for t in "$@"; do bench_lsp "${t%/}"; done; exit 0 ;;
   --vscode)  shift; [ $# -gt 0 ] || set -- .
-             [ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+             [ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
              bench_vscode "${1%/}"; exit 0 ;;
   --vscode-vanilla) shift; [ $# -gt 0 ] || set -- .
-             [ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+             [ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
              bench_vscode_vanilla "${1%/}"; exit 0 ;;
   --editors) shift; [ $# -gt 0 ] || set -- .
-             [ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+             [ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
              bench_editors "${1%/}"; exit 0 ;;
   -*)        die "unknown option: $1 (try --help)" ;;
 esac
 
-[ -x "$BIN" ] || die "$BIN not found; run: go build -o px0 ."
+[ -x "$BIN" ] || die "$BIN not found; run: go build -o rivo ."
 command -v curl >/dev/null || die "curl is required"
 
 targets=("$@")

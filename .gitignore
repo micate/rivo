@@ -1,6 +1,7 @@
 dist/
 bench-repos/
-px0
+rivo
+Rivo
 *.test
 *.prof
 
@@ -21,4 +22,3 @@ build/
 
 # Logs
 *.log
-px0

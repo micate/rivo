@@ -1,8 +1,9 @@
+//go:build !desktop
+
 package main
 
 import (
 	"context"
-	_ "embed"
 	"flag"
 	"fmt"
 	"net"
@@ -19,11 +20,6 @@ import (
 	"time"
 )
 
-//go:embed VERSION
-var rawVersion string
-
-var version = strings.TrimSpace(rawVersion)
-
 func main() {
 	var (
 		port         = flag.Int("port", 7777, "port to listen on (0 picks a free one)")
@@ -34,7 +30,7 @@ func main() {
 		dev          = flag.String("dev", "", "serve the UI from this source directory instead of the embedded copy")
 		showVer      = flag.Bool("version", false, "print version and exit")
 		showVerShort = flag.Bool("v", false, "print version and exit (shorthand)")
-		doUpdate     = flag.Bool("update", false, "check for and install latest version of px0")
+		doUpdate     = flag.Bool("update", false, "check for and install latest version of rivo")
 		noColor      = flag.Bool("no-color", false, "disable colour output")
 		quiet        = flag.Bool("quiet", false, "suppress narration")
 		noTelemetry  = flag.Bool("no-telemetry", false, "disable anonymous usage telemetry")
@@ -42,7 +38,7 @@ func main() {
 		noAgent      = flag.Bool("no-agent", false, "do not offer editing through a coding harness")
 	)
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "px0 %s - a code navigator\n\nusage: px0 [flags] [file or directory]\n\nflags:\n", version)
+		fmt.Fprintf(os.Stderr, "rivo %s - a code navigator\n\nusage: rivo [flags] [file or directory]\n\nflags:\n", version)
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -59,7 +55,7 @@ func main() {
 	}
 
 	if *showVer || *showVerShort || (flag.NArg() == 1 && flag.Arg(0) == "version") {
-		fmt.Printf("px0 %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("rivo %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 		return
 	}
 
@@ -108,7 +104,7 @@ func main() {
 	srv := &http.Server{Handler: pxSrv}
 
 	url := viewerURL(addr, initialFile, initialLine)
-	uiHeading("px0 "+version, nil, os.Stdout)
+	uiHeading("rivo "+version, nil, os.Stdout)
 	uiKV("workspace", root, 11, os.Stdout)
 	uiKV("url", uiAccent(url, os.Stdout), 11, os.Stdout)
 	if n := agent.Name(); n != "" {
@@ -361,6 +357,6 @@ func isWSL() bool {
 }
 
 func fatal(err error) {
-	fmt.Fprintln(os.Stderr, "px0:", err)
+	fmt.Fprintln(os.Stderr, "rivo:", err)
 	os.Exit(1)
 }

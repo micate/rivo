@@ -5,7 +5,7 @@
 // adding one needs no JavaScript change. See docs/internals/styling-and-themes.md.
 import { showToast } from './ui.js';
 
-const KEY = 'px0.theme';
+const KEY = 'rivo.theme';
 const THEME_SELECTOR = /^(?::root|html)?\[data-theme=["']?([\w-]+)["']?\]$/;
 
 let themes = null;

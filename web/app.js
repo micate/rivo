@@ -134,7 +134,7 @@
     S2.wrap = typeof forced === "boolean" ? forced : !S2.wrap;
     document.body.classList.toggle("word-wrap", S2.wrap);
     try {
-      localStorage.setItem("px0.wrap", S2.wrap ? "true" : "false");
+      localStorage.setItem("rivo.wrap", S2.wrap ? "true" : "false");
     } catch {}
     updateEditorOptionControls();
     layout();
@@ -144,7 +144,7 @@
     S2.lineNumbers = typeof forced === "boolean" ? forced : !S2.lineNumbers;
     document.body.classList.toggle("hide-lines", !S2.lineNumbers);
     try {
-      localStorage.setItem("px0.lineNumbers", S2.lineNumbers ? "true" : "false");
+      localStorage.setItem("rivo.lineNumbers", S2.lineNumbers ? "true" : "false");
     } catch {}
     updateEditorOptionControls();
     layout();
@@ -267,11 +267,11 @@
   }
   function toPos(node, off) {
     if (node === rowsEl) {
-      const row2 = rowsEl.children[off] || rowsEl.lastElementChild;
-      if (!row2)
+      const row = rowsEl.children[off] || rowsEl.lastElementChild;
+      if (!row)
         return null;
       const atEnd = !rowsEl.children[off];
-      return { line: +row2.dataset.l, col: atEnd ? $(".c", row2).textContent.length : 0 };
+      return { line: +row.dataset.l, col: atEnd ? $(".c", row).textContent.length : 0 };
     }
     const el = node.nodeType === 1 ? node : node.parentElement;
     const row = el && el.closest(".row");
@@ -1381,11 +1381,11 @@
       node = p.offsetNode;
       off = p.offset;
     } else if (document.caretRangeFromPoint) {
-      const r2 = document.caretRangeFromPoint(x, y);
-      if (!r2)
+      const r = document.caretRangeFromPoint(x, y);
+      if (!r)
         return null;
-      node = r2.startContainer;
-      off = r2.startOffset;
+      node = r.startContainer;
+      off = r.startOffset;
     } else
       return null;
     const el = node && (node.nodeType === 1 ? node : node.parentElement);
@@ -1680,10 +1680,10 @@
   function drawSetup(s, d) {
     const ext = (d.path.match(/\.[^./]+$/) || [d.name])[0];
     if (!s.enabled) {
-      return hintHtml("Language servers are turned off: px0 was started with <b>-no-lsp</b>. " + "Restart it without that flag for call trails, hover and precise references.");
+      return hintHtml("Language servers are turned off: rivo was started with <b>-no-lsp</b>. " + "Restart it without that flag for call trails, hover and precise references.");
     }
     if (!s.servers.length) {
-      return hintHtml("px0 knows no language server for <b>" + esc(ext) + "</b> files, so call trails are not available here.");
+      return hintHtml("rivo knows no language server for <b>" + esc(ext) + "</b> files, so call trails are not available here.");
     }
     const offer = s.servers.filter((v) => v.options.length || v.job);
     const running = s.servers.some((v) => v.job && v.job.running);
@@ -1712,7 +1712,7 @@
       html += "</div>";
     }
     if (!offer.length) {
-      html += "<p>px0 has no installer for this one. Install " + s.servers.map((v) => "<b>" + esc(v.name) + "</b>").join(" or ") + " and make sure it is on PATH.</p>";
+      html += "<p>rivo has no installer for this one. Install " + s.servers.map((v) => "<b>" + esc(v.name) + "</b>").join(" or ") + " and make sure it is on PATH.</p>";
     }
     html += '<div class="lsp-row"><span>Installed one yourself?</span><button class="lsp-btn" data-start>Detect and start</button></div></div>';
     return html;
@@ -1758,7 +1758,7 @@
       el.innerHTML = '<div class="hint">' + html + "</div>";
   };
   var base = (p) => p.split("/").pop();
-  var explain = (msg) => /connection lost|exited|EOF/i.test(msg) ? msg + " (the language server crashed answering this; px0 restarts it on the next request)" : msg;
+  var explain = (msg) => /connection lost|exited|EOF/i.test(msg) ? msg + " (the language server crashed answering this; rivo restarts it on the next request)" : msg;
   function wrap(n, parent) {
     let cycle = false;
     for (let p = parent;p; p = p.parent) {
@@ -1980,14 +1980,14 @@
     const d = doc_();
     if (!d || at.path !== d.path)
       return;
-    const seq2 = ++hoverSeq;
+    const seq = ++hoverSeq;
     let j;
     try {
       j = await api("/api/lsp/hover", { path: d.path, line: at.line, col: at.col, wait: 4000 });
     } catch {
       return;
     }
-    if (seq2 !== hoverSeq || doc_() !== d)
+    if (seq !== hoverSeq || doc_() !== d)
       return;
     setLspState(j);
     if (!j || j.empty || !j.signature && !j.doc)
@@ -2146,9 +2146,9 @@
     mdArticle.replaceChildren(mdSanitize(d.mdHtml, d.path));
     mdEnhance();
     mdDrawn = d;
-    const target2 = d.mdAnchor && mdFindAnchor(d.mdAnchor);
-    if (target2)
-      mdScrollTo(target2);
+    const target = d.mdAnchor && mdFindAnchor(d.mdAnchor);
+    if (target)
+      mdScrollTo(target);
     else if (d.mdLine)
       previewLine(d.mdLine);
     else
@@ -2186,7 +2186,7 @@
   function mdSetPref(on) {
     S2.mdPreview = on;
     try {
-      localStorage.setItem("px0.mdPreview", on ? "true" : "false");
+      localStorage.setItem("rivo.mdPreview", on ? "true" : "false");
     } catch {}
   }
   var HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -2195,12 +2195,12 @@
   var MD_ATTRS = new Set(("align valign alt title lang dir width height colspan rowspan start reversed open checked " + "disabled type data-line data-lang").split(" "));
   var MD_TOKENS = new Set("k kt nf nc nb nv no na nt nd np s m o p c cp gi gd gh ge gs err g".split(" "));
   var MD_SCHEME = /^([a-z][a-z0-9+.-]*):/i;
-  var MD_ORIGIN = "http://px0.invalid";
+  var MD_ORIGIN = "http://rivo.invalid";
   var mdURL = (ref) => ref.replace(/[\t\n\r]/g, "").replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "");
   function mdSanitize(html, docPath) {
     const body = new DOMParser().parseFromString(html, "text/html").body;
     const dir = docPath.slice(0, docPath.lastIndexOf("/") + 1);
-    const base2 = MD_ORIGIN + "/" + dir.split("/").map(encodeURIComponent).join("/");
+    const base = MD_ORIGIN + "/" + dir.split("/").map(encodeURIComponent).join("/");
     for (const el of [...body.querySelectorAll("*")]) {
       if (!body.contains(el))
         continue;
@@ -2232,19 +2232,19 @@
       if (tag === "input")
         el.disabled = true;
       if (tag === "img")
-        mdSetImage(el, mdURL(attrs.src || ""), base2);
+        mdSetImage(el, mdURL(attrs.src || ""), base);
       if (tag === "a" && attrs.href)
-        mdSetLink(el, mdURL(attrs.href), base2);
+        mdSetLink(el, mdURL(attrs.href), base);
     }
     const frag = document.createDocumentFragment();
     while (body.firstChild)
       frag.appendChild(document.adoptNode(body.firstChild));
     return frag;
   }
-  function mdLocal(ref, base2) {
+  function mdLocal(ref, base) {
     let u;
     try {
-      u = new URL(ref, base2);
+      u = new URL(ref, base);
     } catch {
       return null;
     }
@@ -2256,7 +2256,7 @@
     } catch {}
     return { path: path.slice(1), hash: u.hash.slice(1) };
   }
-  function mdSetImage(img, src, base2) {
+  function mdSetImage(img, src, base) {
     const m = MD_SCHEME.exec(src);
     if (m) {
       if (/^https?$/i.test(m[1]) || /^data:image\//i.test(src))
@@ -2264,12 +2264,12 @@
     } else if (src.startsWith("//")) {
       img.setAttribute("src", src);
     } else if (src) {
-      const t = mdLocal(src, base2);
+      const t = mdLocal(src, base);
       if (t)
         img.setAttribute("src", "/api/raw?path=" + encodeURIComponent(t.path));
     }
   }
-  function mdSetLink(a, href, base2) {
+  function mdSetLink(a, href, base) {
     if (href.startsWith("#")) {
       a.setAttribute("href", href);
       a.dataset.anchor = href.slice(1);
@@ -2284,7 +2284,7 @@
       a.rel = "noopener noreferrer";
       return;
     }
-    const t = mdLocal(href, base2);
+    const t = mdLocal(href, base);
     if (!t)
       return;
     a.setAttribute("href", "/api/raw?path=" + encodeURIComponent(t.path));
@@ -2297,17 +2297,17 @@
     for (const q of $$("blockquote", mdArticle))
       mdAlert(q);
     for (const pre of $$("pre", mdArticle)) {
-      const wrap2 = document.createElement("div");
-      wrap2.className = "md-pre";
+      const wrap = document.createElement("div");
+      wrap.className = "md-pre";
       if (pre.dataset.lang)
-        wrap2.dataset.lang = pre.dataset.lang;
-      pre.replaceWith(wrap2);
+        wrap.dataset.lang = pre.dataset.lang;
+      pre.replaceWith(wrap);
       const copy = document.createElement("button");
       copy.className = "md-copy";
       copy.title = "Copy code";
       copy.setAttribute("aria-label", "Copy code");
       copy.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';
-      wrap2.append(pre, copy);
+      wrap.append(pre, copy);
     }
   }
   function mdAlert(q) {
@@ -2486,7 +2486,7 @@
   }
   function showPreviewHit(i) {
     const marks = $$("mark.md-hit", mdArticle);
-    marks.forEach((m2, k) => m2.classList.toggle("on", k === i));
+    marks.forEach((m, k) => m.classList.toggle("on", k === i));
     const m = marks[i];
     if (!m)
       return;
@@ -2536,12 +2536,12 @@
   var shown = null;
   function setLayoutPref(mode) {
     try {
-      localStorage.setItem("px0.diffLayout", mode);
+      localStorage.setItem("rivo.diffLayout", mode);
     } catch {}
   }
   function layoutPref() {
     try {
-      return localStorage.getItem("px0.diffLayout") || "split";
+      return localStorage.getItem("rivo.diffLayout") || "split";
     } catch {
       return "split";
     }
@@ -2785,18 +2785,18 @@
     const sizeEl = $("#st-size");
     if (sizeEl)
       sizeEl.textContent = d ? fmtBytes(d.size) : "";
-    const isMd = !!(d && d.markdown), shown2 = previewing(d);
+    const isMd = !!(d && d.markdown), shown = previewing(d);
     const mdBtn = $('[data-action="md-preview"]');
     if (mdBtn) {
       mdBtn.hidden = !isMd;
-      mdBtn.classList.toggle("active", shown2);
+      mdBtn.classList.toggle("active", shown);
     }
     const sw = $("#md-switch");
     if (sw) {
       sw.hidden = !isMd;
       document.body.classList.toggle("md-tab", isMd);
       for (const b of sw.children)
-        b.classList.toggle("on", isMd && b.dataset.md === "preview" === shown2);
+        b.classList.toggle("on", isMd && b.dataset.md === "preview" === shown);
     }
     const hasDiff = !!(d && d.diffAvailable);
     const isDiffOn = !!(d && d.diffMode);
@@ -2824,7 +2824,7 @@
     const verEl = $("#st-ver");
     if (verEl && S2.meta?.version) {
       verEl.textContent = "v" + S2.meta.version;
-      verEl.title = `px0 v${S2.meta.version} (Click for shortcuts & help)`;
+      verEl.title = `rivo v${S2.meta.version} (Click for shortcuts & help)`;
     }
     drawLspStatus();
   }
@@ -3183,9 +3183,9 @@
     let idx = S2.tabs.findIndex((t) => t.path === path);
     if (idx < 0) {
       let j;
-      const start2 = line ? Math.max(0, Math.floor((line - 1) / CHUNK) * CHUNK) : 0;
+      const start = line ? Math.max(0, Math.floor((line - 1) / CHUNK) * CHUNK) : 0;
       try {
-        j = await api("/api/file", { path, start: start2, count: CHUNK });
+        j = await api("/api/file", { path, start, count: CHUNK });
       } catch (e) {
         setStatusNote(path + ": " + e.message);
         return;
@@ -3195,7 +3195,7 @@
         return;
       }
       const hasDiff = !!j.diffAvailable;
-      const d2 = {
+      const d = {
         path,
         name: path.split("/").pop(),
         lang: j.lang,
@@ -3203,7 +3203,7 @@
         maxCols: j.maxCols,
         size: j.size,
         lines: new Array(j.total),
-        chunks: new Set([start2 / CHUNK]),
+        chunks: new Set([start / CHUNK]),
         pending: new Set,
         refining: new Set,
         scrollTop: 0,
@@ -3217,13 +3217,13 @@
         diffDismissed: false
       };
       for (let i = 0;i < j.lines.length; i++)
-        d2.lines[j.start + i] = j.lines[i];
-      d2.lsp = j.lsp || { state: "off", server: "" };
-      S2.tabs.push(d2);
+        d.lines[j.start + i] = j.lines[i];
+      d.lsp = j.lsp || { state: "off", server: "" };
+      S2.tabs.push(d);
       idx = S2.tabs.length - 1;
       if (j.refine)
-        refineChunk(d2, start2 / CHUNK);
-      loadGutter(d2);
+        refineChunk(d, start / CHUNK);
+      loadGutter(d);
     }
     const prev = doc_();
     if (prev && prev !== S2.tabs[idx])
@@ -3323,7 +3323,7 @@
       const hasDiff = !!j.diffAvailable;
       const newCur = Math.max(1, Math.min(keep.cur || 1, j.total));
       const diffMode = hasDiff ? keep.diffMode || null : null;
-      const d2 = {
+      const d = {
         path: tgt.path,
         name: tgt.path.split("/").pop(),
         lang: j.lang,
@@ -3348,13 +3348,13 @@
         diffScroll: keep === activeDoc && keep.diffMode ? diffScrollTop() : 0
       };
       for (let k = 0;k < j.lines.length; k++) {
-        d2.lines[j.start + k] = j.lines[k];
+        d.lines[j.start + k] = j.lines[k];
       }
-      d2.lsp = j.lsp || { state: "off", server: "" };
-      S2.tabs[idx] = d2;
+      d.lsp = j.lsp || { state: "off", server: "" };
+      S2.tabs[idx] = d;
       if (j.refine)
-        refineChunk(d2, tgt.start / CHUNK);
-      loadGutter(d2);
+        refineChunk(d, tgt.start / CHUNK);
+      loadGutter(d);
     }
     const d = doc_();
     if (d) {
@@ -3518,7 +3518,7 @@
   }
 
   // web/src/theme.js
-  var KEY = "px0.theme";
+  var KEY = "rivo.theme";
   var THEME_SELECTOR = /^(?::root|html)?\[data-theme=["']?([\w-]+)["']?\]$/;
   var themes = null;
   function listThemes() {
@@ -4577,6 +4577,118 @@ Undo anyway and lose those later changes?`)) {
     });
   }
 
+  // web/src/desktop.js
+  async function desktopRequest(path, options) {
+    const response = await fetch(path, options);
+    if (!response.ok) {
+      let message = `Request failed (${response.status})`;
+      try {
+        message = (await response.json()).error || message;
+      } catch {}
+      throw new Error(message);
+    }
+    return response.json();
+  }
+  function recentTime(timestamp) {
+    if (!timestamp)
+      return "";
+    const date = new Date(timestamp * 1000);
+    const now = Date.now();
+    const days = Math.floor((now - date.getTime()) / 86400000);
+    if (days <= 0)
+      return "Today";
+    if (days === 1)
+      return "Yesterday";
+    if (days < 7)
+      return `${days} days ago`;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function showStartError(message) {
+    let node = $("#start-error");
+    if (!node) {
+      node = document.createElement("p");
+      node.id = "start-error";
+      node.className = "start-error";
+      $(".start-actions")?.after(node);
+    }
+    node.textContent = message;
+  }
+  async function openDesktopProject(path = "") {
+    const button = $("#start-open");
+    if (button)
+      button.disabled = true;
+    try {
+      const suffix = path ? `?path=${encodeURIComponent(path)}` : "";
+      const result = await desktopRequest("/desktop/open" + suffix, { method: "POST" });
+      if (result.reload)
+        location.reload();
+    } catch (error) {
+      showStartError(error.message || String(error));
+    } finally {
+      if (button)
+        button.disabled = false;
+    }
+  }
+  function renderDesktopRecents(recents) {
+    const list = $("#recent-projects");
+    const empty = $("#recent-empty");
+    const count = $("#recent-count");
+    if (!list)
+      return;
+    list.replaceChildren();
+    count.textContent = recents.length ? String(recents.length) : "";
+    empty.hidden = recents.length !== 0;
+    for (const project of recents) {
+      const row = document.createElement("div");
+      row.className = "recent-row" + (project.exists ? "" : " recent-missing");
+      const open = document.createElement("button");
+      open.className = "recent-open";
+      open.disabled = !project.exists;
+      open.title = project.exists ? project.path : "This folder no longer exists";
+      open.innerHTML = `<span class="recent-icon" aria-hidden="true">${project.exists ? "◇" : "!"}</span>` + `<span class="recent-copy"><strong>${esc(project.name)}</strong><small>${esc(project.path)}</small></span>` + `<time>${project.exists ? recentTime(project.lastOpened) : "Missing"}</time>`;
+      if (project.exists)
+        open.addEventListener("click", () => openDesktopProject(project.path));
+      row.append(open);
+      if (!project.exists) {
+        const remove = document.createElement("button");
+        remove.className = "recent-remove";
+        remove.textContent = "Remove";
+        remove.title = "Remove from recent projects";
+        remove.addEventListener("click", async () => {
+          try {
+            const result = await desktopRequest("/desktop/remove?path=" + encodeURIComponent(project.path), { method: "POST" });
+            renderDesktopRecents(result.recents || []);
+          } catch (error) {
+            showStartError(error.message || String(error));
+          }
+        });
+        row.append(remove);
+      }
+      list.append(row);
+    }
+  }
+  async function initDesktop() {
+    let state;
+    try {
+      state = await desktopRequest("/desktop/state");
+    } catch {
+      return false;
+    }
+    document.body.classList.add("native-desktop");
+    if (state.mode !== "welcome")
+      return false;
+    document.body.classList.add("desktop-welcome");
+    $("#app").hidden = true;
+    const start = $("#desktop-start");
+    start.hidden = false;
+    document.title = "Rivo";
+    renderDesktopRecents(state.recents || []);
+    $("#start-open")?.addEventListener("click", () => openDesktopProject());
+    $("#start-new-window")?.addEventListener("click", () => desktopRequest("/desktop/new-window", { method: "POST" }).catch((error) => showStartError(error.message)));
+    $("#start-theme")?.addEventListener("click", cycleTheme);
+    return true;
+  }
+
   // web/src/main.js
   initRenderer();
   initTabs();
@@ -4600,17 +4712,19 @@ Undo anyway and lose those later changes?`)) {
   (async function boot() {
     try {
       initTheme();
-      const wrapPref = localStorage.getItem("px0.wrap");
+      const wrapPref = localStorage.getItem("rivo.wrap");
       S2.wrap = wrapPref !== null ? wrapPref === "true" : true;
       document.body.classList.toggle("word-wrap", S2.wrap);
-      const linesPref = localStorage.getItem("px0.lineNumbers");
+      const linesPref = localStorage.getItem("rivo.lineNumbers");
       S2.lineNumbers = linesPref !== null ? linesPref === "true" : true;
       document.body.classList.toggle("hide-lines", !S2.lineNumbers);
-      const mdPref = localStorage.getItem("px0.mdPreview");
+      const mdPref = localStorage.getItem("rivo.mdPreview");
       S2.mdPreview = mdPref !== null ? mdPref === "true" : true;
       updateEditorOptionControls();
     } catch {}
     applyKeyLabels();
+    if (await initDesktop())
+      return;
     measure();
     S2.meta = await api("/api/meta");
     if (S2.meta.metrics)
@@ -4621,7 +4735,7 @@ Undo anyway and lose those later changes?`)) {
         b.hidden = false;
     }
     applyAgentMeta();
-    document.title = S2.meta.name + " - px0";
+    document.title = S2.meta.name + " - Rivo";
     $("#root-name").textContent = S2.meta.name;
     $("#root-name").title = S2.meta.root;
     if (S2.meta.version) {
@@ -4654,16 +4768,16 @@ Undo anyway and lose those later changes?`)) {
       });
     }
     if (S2.meta && !S2.meta.ready) {
-      const timer2 = setInterval(async () => {
+      const timer = setInterval(async () => {
         try {
           const m = await api("/api/meta");
           if (m.ready) {
-            clearInterval(timer2);
+            clearInterval(timer);
             S2.meta = m;
             updateStatus();
           }
         } catch {
-          clearInterval(timer2);
+          clearInterval(timer);
         }
       }, 150);
     }

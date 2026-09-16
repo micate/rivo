@@ -105,8 +105,10 @@ type lspClient struct {
 	// (the spec default) or "utf-32".
 	encoding string
 
-	readyCh chan struct{}
-	once    sync.Once
+	readyCh      chan struct{}
+	processDone  chan struct{}
+	once         sync.Once
+	shutdownOnce sync.Once
 
 	// indexing tracks $/progress tokens so callers can tell "no result" from
 	// "the server has not finished indexing yet".
@@ -117,11 +119,12 @@ type lspClient struct {
 func newLSPClient(def lspServerDef, root string) *lspClient {
 	return &lspClient{
 		def: def, root: root,
-		pending:  map[int64]chan rpcMessage{},
-		opened:   map[string]int{},
-		encoding: "utf-16",
-		readyCh:  make(chan struct{}),
-		logf:     func(string, ...any) {},
+		pending:     map[int64]chan rpcMessage{},
+		opened:      map[string]int{},
+		encoding:    "utf-16",
+		readyCh:     make(chan struct{}),
+		processDone: make(chan struct{}),
+		logf:        func(string, ...any) {},
 	}
 }
 
@@ -147,9 +150,14 @@ func (c *lspClient) start(ctx context.Context) error {
 	go func() {
 		c.cmd.Wait()
 		c.fail(fmt.Errorf("%s exited", c.def.Name))
+		close(c.processDone)
 	}()
 
-	return c.initialize(ctx)
+	if err := c.initialize(ctx); err != nil {
+		c.shutdown()
+		return err
+	}
+	return nil
 }
 
 func (c *lspClient) fail(err error) {
@@ -351,7 +359,7 @@ func (c *lspClient) initialize(ctx context.Context) error {
 		"processId": os.Getpid(),
 		"rootUri":   pathToURI(c.root),
 		"clientInfo": map[string]string{
-			"name": "px0", "version": version,
+			"name": "rivo", "version": version,
 		},
 		"workspaceFolders": []any{
 			map[string]string{"uri": pathToURI(c.root), "name": filepath.Base(c.root)},
@@ -406,16 +414,31 @@ func (c *lspClient) initialize(ctx context.Context) error {
 }
 
 func (c *lspClient) shutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	c.call(ctx, "shutdown", nil, nil)
-	c.notify("exit", nil)
-	if c.in != nil {
-		c.in.Close()
-	}
-	if c.cmd != nil && c.cmd.Process != nil {
-		time.AfterFunc(time.Second, func() { c.cmd.Process.Kill() })
-	}
+	c.shutdownOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		c.call(ctx, "shutdown", nil, nil)
+		cancel()
+		c.notify("exit", nil)
+		if c.in != nil {
+			c.in.Close()
+		}
+		if c.cmd == nil || c.cmd.Process == nil {
+			return
+		}
+
+		// Do not return while the child is still alive. This makes closing the
+		// owning desktop session a real lifecycle boundary rather than a delayed
+		// best-effort kill that may lose its goroutine during application exit.
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		select {
+		case <-c.processDone:
+			return
+		case <-timer.C:
+			_ = c.cmd.Process.Kill()
+		}
+		<-c.processDone
+	})
 }
 
 // ensureOpen tells the server about a file. Most servers refuse to answer

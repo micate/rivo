@@ -14,7 +14,7 @@ assignees: ""
 
 ### Reproduction
 
-1. Run `px0 ...`
+1. Run `rivo ...`
 1. Go to `...`
 1. Notice that `...`
 
@@ -23,11 +23,11 @@ Actual: <!-- What happened instead -->
 
 ### Environment
 
-px0 version: <!-- run `px0 -version` -->
+rivo version: <!-- run `rivo -version` -->
 OS: <!-- e.g. Ubuntu 24.04 / macOS Sonoma / Windows 11 -->
 Browser: <!-- e.g. Chrome 128 / Firefox 130 -->
 Workspace size / primary language: <!-- e.g. ~4k files, Go -->
-Repository: <!-- Link to Repo or codebase which you loaded in px0 -->
+Repository: <!-- Link to Repo or codebase which you loaded in rivo -->
 
 ### Logs & Errors
 

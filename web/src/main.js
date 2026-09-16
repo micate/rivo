@@ -19,6 +19,7 @@ import { initMarkdown } from './markdown.js';
 import { initDiff } from './diff.js';
 import { initAgent, applyAgentMeta } from './agent.js';
 import { updateStatus, initMetrics, initStatusFit, updateMetricsDisplay } from './status.js';
+import { initDesktop } from './desktop.js';
 
 // Initialize all subsystems
 initRenderer();
@@ -47,30 +48,31 @@ initStatusFit();
     initTheme();
 
     // Restore word wrap (default ON)
-    const wrapPref = localStorage.getItem('px0.wrap');
+    const wrapPref = localStorage.getItem('rivo.wrap');
     S.wrap = wrapPref !== null ? wrapPref === 'true' : true;
     document.body.classList.toggle('word-wrap', S.wrap);
 
     // Restore line numbers (default ON)
-    const linesPref = localStorage.getItem('px0.lineNumbers');
+    const linesPref = localStorage.getItem('rivo.lineNumbers');
     S.lineNumbers = linesPref !== null ? linesPref === 'true' : true;
     document.body.classList.toggle('hide-lines', !S.lineNumbers);
 
     // Restore Markdown preview (default ON)
-    const mdPref = localStorage.getItem('px0.mdPreview');
+    const mdPref = localStorage.getItem('rivo.mdPreview');
     S.mdPreview = mdPref !== null ? mdPref === 'true' : true;
 
     updateEditorOptionControls();
   } catch {}
 
   applyKeyLabels();
+  if (await initDesktop()) return;
 
   measure();
   S.meta = await api('/api/meta');
   if (S.meta.metrics) updateMetricsDisplay(S.meta.metrics);
   if (S.meta.git) { const b = $('#btn-changed'); if (b) b.hidden = false; }
   applyAgentMeta();
-  document.title = S.meta.name + ' - px0';
+  document.title = S.meta.name + ' - Rivo';
   $('#root-name').textContent = S.meta.name;
   $('#root-name').title = S.meta.root;
   if (S.meta.version) {

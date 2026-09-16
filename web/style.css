@@ -39,7 +39,78 @@ input { font: inherit; color: inherit; background: none; border: 0; outline: 0; 
 
 #app { display: flex; height: 100vh; }
 
-
+/* ---------- native desktop start screen ---------- */
+#desktop-start {
+  height: 100vh; overflow: auto; background: var(--bg); color: var(--fg);
+  user-select: none;
+}
+.start-shell {
+  width: min(720px, calc(100vw - 64px)); min-height: 100%; margin: 0 auto;
+  padding: clamp(56px, 10vh, 104px) 0 32px; display: flex; flex-direction: column;
+}
+.start-brand { display: flex; align-items: center; gap: 18px; margin-bottom: 36px; }
+.start-brand h1 { margin: 0; font-size: 24px; line-height: 1.2; letter-spacing: -.03em; }
+.start-brand p { margin: 5px 0 0; color: var(--dim); font-size: 13px; }
+.start-mark {
+  width: 58px; height: 58px; flex: none; object-fit: contain;
+  filter: drop-shadow(0 1px 2px var(--shadow)) drop-shadow(0 12px 24px var(--shadow));
+}
+.start-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 30px; }
+.start-actions button, .recent-row button, .start-foot button { cursor: default; }
+.start-primary, .start-secondary {
+  min-height: 52px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg2);
+  display: flex; align-items: center; text-align: left; transition: background .12s ease, border-color .12s ease;
+}
+.start-primary { padding: 8px 12px; gap: 11px; }
+.start-secondary { padding: 0 15px; gap: 16px; }
+.start-primary:hover, .start-secondary:hover { background: var(--bg3); border-color: var(--faint); }
+.start-primary:active, .start-secondary:active { background: var(--bg4); }
+.start-primary:disabled { opacity: .55; }
+.start-primary strong { display: block; font-size: 13px; font-weight: 600; }
+.start-primary small { display: block; margin-top: 1px; color: var(--dim); font-size: 11.5px; }
+.start-action-icon { color: var(--accent-fg); font-size: 22px; line-height: 1; }
+.start-actions kbd {
+  margin-left: auto; color: var(--faint); border: 0; background: transparent;
+  font: 11px/1 var(--ui); white-space: nowrap;
+}
+.start-error { margin: -20px 0 22px; color: var(--err); font-size: 12px; }
+.recent-section { min-height: 220px; }
+.recent-heading-row { height: 28px; padding: 0 7px; display: flex; align-items: center; }
+.recent-heading-row h2 {
+  margin: 0; color: var(--dim); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+}
+#recent-count { margin-left: auto; color: var(--faint); font: 11px/1 var(--mono); }
+.recent-list { display: flex; flex-direction: column; gap: 2px; }
+.recent-row { min-width: 0; display: flex; align-items: center; border-radius: 6px; }
+.recent-row:hover { background: var(--bg2); }
+.recent-open {
+  height: 48px; min-width: 0; flex: 1; padding: 5px 8px; display: flex; align-items: center;
+  gap: 10px; text-align: left; border-radius: 6px;
+}
+.recent-open:active:not(:disabled) { background: var(--bg3); }
+.recent-icon {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  border-radius: 6px; background: var(--bg3); color: var(--accent-fg); font: 15px/1 var(--mono);
+}
+.recent-copy { min-width: 0; display: block; }
+.recent-copy strong, .recent-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-copy strong { font-size: 12.5px; font-weight: 500; }
+.recent-copy small { max-width: 480px; margin-top: 1px; color: var(--dim); font-size: 11px; }
+.recent-open time { margin-left: auto; padding-left: 14px; color: var(--faint); font-size: 11px; white-space: nowrap; }
+.recent-missing .recent-open { opacity: .58; }
+.recent-missing .recent-icon { color: var(--err); }
+.recent-remove {
+  flex: none; margin-right: 8px; padding: 4px 7px; border-radius: 4px; color: var(--dim); font-size: 11px;
+}
+.recent-remove:hover { color: var(--fg); background: var(--bg3); }
+.recent-empty { margin: 24px 8px; color: var(--faint); font-size: 12px; }
+.start-foot {
+  margin-top: auto; padding-top: 36px; display: flex; align-items: center; color: var(--faint); font-size: 11px;
+}
+.start-foot button { margin-left: auto; padding: 4px 7px; border-radius: 4px; color: var(--dim); }
+.start-foot button:hover { color: var(--fg); background: var(--bg2); }
+#desktop-start button:focus { outline: 0; }
+#desktop-start button:focus-visible { outline: 1px solid var(--accent-fg); outline-offset: 2px; }
 
 /* ---------- sidebar ---------- */
 #side {

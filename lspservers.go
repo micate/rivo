@@ -12,7 +12,7 @@ import (
 )
 
 // lspServerDef describes one language server we know how to drive. Nothing here
-// is required for px0 to work; a server is used only if its binary is found on
+// is required for rivo to work; a server is used only if its binary is found on
 // PATH or in one of the folders installers commonly use (lspBinDirs).
 type lspServerDef struct {
 	Name        string
@@ -156,13 +156,17 @@ type lspManager struct {
 	root    string
 	enabled bool
 
-	mu        sync.Mutex
-	byExt     map[string]*lspServerDef // resolved by discover(), again on Rescan
-	clients   map[string]*lspClient    // server name -> client
-	starting  map[string]chan struct{}
-	failed    map[string]string
-	available []string
-	restarts  map[string]int // crashes recovered from, per server name
+	mu          sync.Mutex
+	byExt       map[string]*lspServerDef // resolved by discover(), again on Rescan
+	clients     map[string]*lspClient    // server name -> client
+	starting    map[string]chan struct{}
+	failed      map[string]string
+	available   []string
+	restarts    map[string]int // crashes recovered from, per server name
+	closed      bool
+	spawnWG     sync.WaitGroup
+	spawnCtx    context.Context
+	cancelSpawn context.CancelFunc
 
 	discovered bool // the first discover() has finished
 
@@ -195,12 +199,15 @@ func (m *lspManager) Allowed(abs string) bool {
 }
 
 func newLSPManager(root string, enabled bool) *lspManager {
+	spawnCtx, cancelSpawn := context.WithCancel(context.Background())
 	m := &lspManager{
 		root: root, enabled: enabled,
-		byExt:    map[string]*lspServerDef{},
-		clients:  map[string]*lspClient{},
-		starting: map[string]chan struct{}{},
-		failed:   map[string]string{},
+		byExt:       map[string]*lspServerDef{},
+		clients:     map[string]*lspClient{},
+		starting:    map[string]chan struct{}{},
+		failed:      map[string]string{},
+		spawnCtx:    spawnCtx,
+		cancelSpawn: cancelSpawn,
 	}
 	if !enabled {
 		return m
@@ -247,8 +254,8 @@ func (m *lspManager) isDiscovered() bool {
 }
 
 // lspBinDirs lists folders installers put binaries in that are often missing
-// from PATH, so a server installed from px0, or by hand after px0 started, is
-// found without restarting the shell px0 was launched from.
+// from PATH, so a server installed from rivo, or by hand after rivo started, is
+// found without restarting the shell rivo was launched from.
 func lspBinDirs() []string {
 	var dirs []string
 	add := func(elem ...string) { dirs = append(dirs, filepath.Join(elem...)) }
@@ -327,7 +334,7 @@ func (m *lspManager) State(rel string) (lspState, string) {
 	def := m.defFor(rel)
 	if def == nil {
 		// Discovery runs in the background at startup. Until it finishes, a
-		// file type px0 knows may still get a server, so keep the UI asking.
+		// file type rivo knows may still get a server, so keep the UI asking.
 		if m.enabled && !m.isDiscovered() && len(registryFor(rel)) > 0 {
 			return lspStarting, ""
 		}
@@ -364,6 +371,10 @@ func (m *lspManager) client(ctx context.Context, rel string) (*lspClient, error)
 	}
 	for {
 		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return nil, errFailed{"language server manager is closed"}
+		}
 		if why, bad := m.failed[def.Name]; bad {
 			m.mu.Unlock()
 			return nil, errFailed{why}
@@ -402,6 +413,7 @@ func (m *lspManager) client(ctx context.Context, rel string) (*lspClient, error)
 		}
 		done := make(chan struct{})
 		m.starting[def.Name] = done
+		m.spawnWG.Add(1)
 		m.mu.Unlock()
 
 		go m.spawn(def, done)
@@ -416,23 +428,32 @@ func (m *lspManager) client(ctx context.Context, rel string) (*lspClient, error)
 }
 
 func (m *lspManager) spawn(def *lspServerDef, done chan struct{}) {
+	defer m.spawnWG.Done()
 	// The handshake gets a generous budget of its own: some servers do real
 	// work before answering initialize.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	parent := m.spawnCtx
+	if parent == nil { // supports small managers constructed directly in tests
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	c := newLSPClient(*def, m.root)
 	err := c.start(ctx)
 
 	m.mu.Lock()
+	closed := m.closed
 	if err != nil {
 		m.failed[def.Name] = err.Error()
-	} else {
+	} else if !closed {
 		m.clients[def.Name] = c
 	}
 	delete(m.starting, def.Name)
 	m.mu.Unlock()
 	close(done)
+	if closed && err == nil {
+		c.shutdown()
+	}
 }
 
 func (m *lspManager) CloseDoc(abs, rel string) {
@@ -450,15 +471,27 @@ func (m *lspManager) CloseDoc(abs, rel string) {
 
 func (m *lspManager) Close() {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.closed = true
+	if m.cancelSpawn != nil {
+		m.cancelSpawn()
+	}
 	clients := make([]*lspClient, 0, len(m.clients))
 	for _, c := range m.clients {
 		clients = append(clients, c)
 	}
 	m.clients = map[string]*lspClient{}
 	m.mu.Unlock()
+
 	for _, c := range clients {
 		c.shutdown()
 	}
+	// A session can close while an LSP handshake is still in flight. Wait for
+	// those spawns; spawn observes closed and shuts each resulting child down.
+	m.spawnWG.Wait()
 }
 
 type errFailed struct{ why string }

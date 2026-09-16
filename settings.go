@@ -8,27 +8,34 @@ import (
 	"sync"
 )
 
-// px0 keeps no state inside a workspace. The one choice worth remembering
+// rivo keeps no state inside a workspace. The one choice worth remembering
 // between runs is which coding harness may edit it, so it is stored with the
-// other per-user files px0 already writes (~/.px0), never in the working tree.
+// other per-user files rivo already writes (~/.rivo), never in the working tree.
+
+type recentProject struct {
+	Path       string `json:"path"`
+	LastOpened int64  `json:"lastOpened"`
+}
 
 type settings struct {
-	Agent string `json:"agent,omitempty"`
+	Agent          string          `json:"agent,omitempty"`
+	RecentProjects []recentProject `json:"recentProjects,omitempty"`
+	OpenProjects   []string        `json:"openProjects,omitempty"`
 }
 
 var settingsMu sync.Mutex
 
 // settingsPath mirrors stateFilePath in update.go: honour the XDG location when
-// it is set, otherwise fall back to ~/.px0.
+// it is set, otherwise fall back to ~/.rivo.
 func settingsPath() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "px0", "settings.json")
+		return filepath.Join(xdg, "rivo", "settings.json")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return ""
 	}
-	return filepath.Join(home, ".px0", "settings.json")
+	return filepath.Join(home, ".rivo", "settings.json")
 }
 
 // readSettings never fails: a missing or corrupt file simply means no choice

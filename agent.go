@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-// Editing through a coding harness. px0 never authors a change itself: it
+// Editing through a coding harness. rivo never authors a change itself: it
 // composes an instruction anchored to a line range, hands it to a harness
 // already installed on this machine, and reloads whatever moved once that
-// harness exits. The harness edits; px0 stays the reader that knows exactly
-// when to look again. The one write px0 makes is putting back what a harness
+// harness exits. The harness edits; rivo stays the reader that knows exactly
+// when to look again. The one write rivo makes is putting back what a harness
 // changed, when asked to undo it (agent_undo.go).
 //
 // Harnesses are discovered the same way language servers are, and the one to
@@ -31,7 +31,7 @@ const (
 	agentLogBytes = 32 << 10
 )
 
-// agentPreset is a harness px0 knows and the argv that runs it headless. Each
+// agentPreset is a harness rivo knows and the argv that runs it headless. Each
 // of these starts an interactive session by default and would sit forever
 // waiting for approval, so every preset carries the flag that turns that off
 // and the one that lets it apply edits without asking.
@@ -71,7 +71,7 @@ type agentJob struct {
 	// UndoNote says why not when the run changed files but no undo is possible.
 	Undoable bool   `json:"undoable"`
 	UndoNote string `json:"undoNote,omitempty"`
-	// Tracked is false outside a git repository, where px0 cannot tell which
+	// Tracked is false outside a git repository, where rivo cannot tell which
 	// files a harness touched. An empty Changed then means "unknown", not
 	// "nothing", and the client reloads regardless.
 	Tracked bool `json:"tracked"`
@@ -102,6 +102,7 @@ type agentManager struct {
 	job      *agentJob
 	undo     *agentUndo // reverses the last job's changes, nil once used or unavailable
 	cancel   context.CancelFunc
+	done     chan struct{} // closed after the active harness has fully stopped
 	seq      int64
 }
 
@@ -174,7 +175,7 @@ func agentPresetNames() []string {
 	return names
 }
 
-// Detect reports every harness px0 knows and whether it is installed right
+// Detect reports every harness rivo knows and whether it is installed right
 // now, so a tool installed since startup shows up without a restart.
 func (m *agentManager) Detect() []agentHarness {
 	out := make([]agentHarness, 0, len(agentPresets))
@@ -212,7 +213,7 @@ func (m *agentManager) Select(name string) error {
 	m.mu.Lock()
 	if m.pinned {
 		m.mu.Unlock()
-		return errors.New("px0 was started with -agent, so the harness is fixed for this run")
+		return errors.New("rivo was started with -agent, so the harness is fixed for this run")
 	}
 	if m.job != nil && m.job.Running {
 		m.mu.Unlock()
@@ -287,7 +288,7 @@ func (m *agentManager) Start(abs, rel string, l1, l2 int, instruction string, fo
 	name := m.selected
 	m.mu.Unlock()
 
-	// The harness rewrites the file in place. px0 can undo the last edit, but
+	// The harness rewrites the file in place. rivo can undo the last edit, but
 	// only that one: a later edit replaces the copy, and then uncommitted work
 	// is out of reach. That needs saying once before it happens.
 	if !force && gitAvailable(m.root) {
@@ -320,19 +321,20 @@ func (m *agentManager) Start(abs, rel string, l1, l2 int, instruction string, fo
 		stderr:  &tailBuffer{max: agentLogBytes},
 		start:   time.Now(),
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), agentTimeout)
+	done := make(chan struct{})
 	m.job = job
+	m.cancel = cancel
+	m.done = done
 	m.mu.Unlock()
 
 	uiStatus("step", fmt.Sprintf("agent: dispatching edit with %s", name), fmt.Sprintf("%s:%s %q", rel, lineRef(l1, l2), instruction), 0, os.Stdout)
-	go m.run(job, args, agentPrompt(rel, l1, l2, snippet, instruction))
+	go m.run(ctx, cancel, done, job, args, agentPrompt(rel, l1, l2, snippet, instruction))
 	return m.Job(), nil
 }
 
-func (m *agentManager) run(job *agentJob, template []string, prompt string) {
-	ctx, cancel := context.WithTimeout(context.Background(), agentTimeout)
-	m.mu.Lock()
-	m.cancel = cancel
-	m.mu.Unlock()
+func (m *agentManager) run(ctx context.Context, cancel context.CancelFunc, done chan struct{}, job *agentJob, template []string, prompt string) {
+	defer close(done)
 	defer cancel()
 
 	pre := capturePreEdit(m.root)
@@ -425,7 +427,23 @@ func (m *agentManager) Cancel() bool {
 	return true
 }
 
-func (m *agentManager) Close() { m.Cancel() }
+func (m *agentManager) Close() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	cancel, done := m.cancel, m.done
+	running := m.job != nil && m.job.Running
+	m.mu.Unlock()
+	if running && cancel != nil {
+		cancel()
+	}
+	// CommandContext terminates the harness on cancellation. Wait for Run and
+	// its post-run bookkeeping to finish before allowing the owner to exit.
+	if running && done != nil {
+		<-done
+	}
+}
 
 // changedSince reports the paths whose state differs from the snapshot taken
 // before the run. Asking git is the only honest answer to "what did it touch":
@@ -584,7 +602,7 @@ func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, job)
 }
 
-// handleAgentJob is polled while an edit runs. px0 dispatched the harness, so
+// handleAgentJob is polled while an edit runs. rivo dispatched the harness, so
 // it knows when the work ended without watching the filesystem for it.
 func (s *Server) handleAgentJob(w http.ResponseWriter, r *http.Request) {
 	if !s.agentOrFail(w) {
