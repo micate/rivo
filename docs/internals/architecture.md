@@ -14,6 +14,8 @@ rivo is engineered as an ultra-fast, zero-overhead code exploration console. Its
 
 ## 2. Startup Pipeline (<1 ms Critical Path)
 
+The optional Wails desktop build serves the same embedded UI. After `/desktop/state` succeeds, `web/src/desktop.js` imports `/wails/runtime.js` before initializing either the project or start screen. This installs Wails' mouse handlers for `--wails-draggable` regions, including native macOS dragging and title-bar double-click actions. CSS alone does not activate these gestures. Interactive descendants use `no-drag` so normal clicks remain available; the regions are enabled only in single-window mode. Browser/server mode skips the runtime import.
+
 When `rivo` is executed in a terminal (e.g., `rivo .` or `rivo main.go:42`), the initialization flow executes as follows. A file target detects its enclosing project repository (or working directory) as the workspace and is passed to the browser with its relative path and optional line number.
 
 ```mermaid

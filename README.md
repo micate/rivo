@@ -51,6 +51,8 @@ make desktop
 
 Pass one or more project directories to open them directly. The desktop app restores projects from the previous quit, keeps a removable recent-project list, provides native File/Window menus and shortcuts, and groups project windows with the native macOS tab bar. Building on Linux requires WebKitGTK; see the [Wails platform prerequisites](https://v3alpha.wails.io/getting-started/installation/).
 
+In a single macOS window, drag the blank sidebar header or file tab bar to move the window. Double-click those regions to perform the system title-bar action (normally zoom/restore, according to macOS settings). The start screen background supports the same gestures. Buttons, links, and file tabs retain their normal click behavior. Multiple windows use the native title bar.
+
 The existing `make build` target continues to produce the browser/CLI version.
 
 ## Features

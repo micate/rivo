@@ -97,7 +97,14 @@ export async function initDesktop() {
   } catch {
     return false;
   }
+  // CSS drag regions only work after the runtime installs its mouse handlers.
+  // Load it in project AND welcome windows, but never in browser/server mode.
+  // Keep the URL dynamic so the web bundler leaves this embedded Wails asset
+  // to the native asset server instead of trying to resolve it from disk.
+  const runtimeURL = '/wails/runtime.js';
+  await import(runtimeURL);
   document.body.classList.add('native-desktop');
+  document.body.classList.toggle('native-single-window', state.singleWindow === true);
   if (state.mode !== 'welcome') return false;
 
   document.body.classList.add('desktop-welcome');

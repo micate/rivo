@@ -39,6 +39,22 @@ input { font: inherit; color: inherit; background: none; border: 0; outline: 0; 
 
 #app { display: flex; height: 100vh; }
 
+/* In a lone macOS window, the web content extends through the transparent
+   titlebar. Only left-aligned content makes room for the traffic lights; the
+   useful controls on the right keep their original position. Blank portions
+   of the top row remain native window-drag regions. Native tab groups switch
+   this class off and use AppKit's normal titlebar layout. */
+body.native-desktop.native-single-window #side .panel-head #root-name { margin-left: 68px; }
+body.native-desktop.native-single-window.side-hidden #tabs { padding-left: 68px; }
+body.native-desktop.native-single-window #side .panel-head,
+body.native-desktop.native-single-window #tabs,
+body.native-desktop.native-single-window #desktop-start { --wails-draggable: drag; }
+body.native-desktop.native-single-window .panel-actions,
+body.native-desktop.native-single-window .tab,
+body.native-desktop.native-single-window #view-switches,
+body.native-desktop.native-single-window #desktop-start button,
+body.native-desktop.native-single-window #desktop-start a { --wails-draggable: no-drag; }
+
 /* ---------- native desktop start screen ---------- */
 #desktop-start {
   height: 100vh; overflow: auto; background: var(--bg); color: var(--fg);

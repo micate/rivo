@@ -4674,7 +4674,10 @@ Undo anyway and lose those later changes?`)) {
     } catch {
       return false;
     }
+    const runtimeURL = "/wails/runtime.js";
+    await import(runtimeURL);
     document.body.classList.add("native-desktop");
+    document.body.classList.toggle("native-single-window", state.singleWindow === true);
     if (state.mode !== "welcome")
       return false;
     document.body.classList.add("desktop-welcome");

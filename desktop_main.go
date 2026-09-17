@@ -145,10 +145,14 @@ func (m *desktopManager) serveDesktopAPI(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		session := m.sessionForRequest(r)
+		m.mu.RLock()
+		singleWindow := len(m.windows) == 1
+		m.mu.RUnlock()
 		writeJSON(w, map[string]any{
-			"desktop": true,
-			"mode":    map[bool]string{true: "project", false: "welcome"}[session != nil],
-			"recents": m.recents(),
+			"desktop":      true,
+			"mode":         map[bool]string{true: "project", false: "welcome"}[session != nil],
+			"recents":      m.recents(),
+			"singleWindow": singleWindow,
 		})
 	case "/desktop/open":
 		if r.Method != http.MethodPost {
@@ -237,6 +241,13 @@ func (m *desktopManager) newWindow(session *desktopSession) application.Window {
 	if session != nil {
 		title = filepath.Base(session.root) + " — Rivo"
 	}
+	m.mu.RLock()
+	firstWindow := len(m.windows) == 0
+	m.mu.RUnlock()
+	titleBar := application.MacTitleBarDefault
+	if firstWindow {
+		titleBar = application.MacTitleBarHidden
+	}
 	window := m.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     title,
 		Width:     1280,
@@ -246,7 +257,7 @@ func (m *desktopManager) newWindow(session *desktopSession) application.Window {
 		URL:       "/",
 		Mac: application.MacWindow{
 			TabbingMode: application.MacWindowTabbingModePreferred,
-			TitleBar:    application.MacTitleBarHidden,
+			TitleBar:    titleBar,
 		},
 		UseApplicationMenu: true,
 		KeyBindings: map[string]func(application.Window){
@@ -261,7 +272,9 @@ func (m *desktopManager) newWindow(session *desktopSession) application.Window {
 	if session != nil {
 		m.sessions[window.ID()] = session
 	}
+	windowCount := len(m.windows)
 	m.mu.Unlock()
+	m.setSingleWindowMode(windowCount == 1)
 	window.OnWindowEvent(events.Common.WindowClosing, func(_ *application.WindowEvent) {
 		m.windowClosed(window.ID())
 	})
@@ -289,14 +302,31 @@ func (m *desktopManager) windowClosed(id uint) {
 	delete(m.sessions, id)
 	delete(m.windows, id)
 	quitting := m.quitting
-	empty := len(m.windows) == 0
+	windowCount := len(m.windows)
+	empty := windowCount == 0
 	m.mu.Unlock()
 	session.close()
 	if !quitting {
 		m.saveOpenProjects()
 		if empty {
 			m.newWindow(nil)
+		} else {
+			m.setSingleWindowMode(windowCount == 1)
 		}
+	}
+}
+
+func (m *desktopManager) setSingleWindowMode(single bool) {
+	setNativeSingleWindowTitleBar(single)
+	js := fmt.Sprintf("document.body.classList.toggle('native-single-window', %t)", single)
+	m.mu.RLock()
+	windows := make([]application.Window, 0, len(m.windows))
+	for _, window := range m.windows {
+		windows = append(windows, window)
+	}
+	m.mu.RUnlock()
+	for _, window := range windows {
+		window.ExecJS(js)
 	}
 }
 
