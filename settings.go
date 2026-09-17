@@ -18,9 +18,10 @@ type recentProject struct {
 }
 
 type settings struct {
-	Agent          string          `json:"agent,omitempty"`
-	RecentProjects []recentProject `json:"recentProjects,omitempty"`
-	OpenProjects   []string        `json:"openProjects,omitempty"`
+	Agent          string            `json:"agent,omitempty"`
+	RecentProjects []recentProject   `json:"recentProjects,omitempty"`
+	OpenProjects   []string          `json:"openProjects,omitempty"`
+	Models         map[string]string `json:"models,omitempty"`
 }
 
 var settingsMu sync.Mutex

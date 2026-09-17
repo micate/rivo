@@ -3,19 +3,19 @@
   var $ = (s, r = document) => r.querySelector(s);
   var $$ = (s, r = document) => [...r.querySelectorAll(s)];
   var esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  var request = async (method, path, params) => {
+  var request = async (method, path, params, opts = {}) => {
     const u = new URL(path, location.origin);
     for (const [k, v] of Object.entries(params || {}))
       if (v !== undefined && v !== "")
         u.searchParams.set(k, v);
-    const r = await fetch(u, { method });
+    const r = await fetch(u, { method, ...opts });
     const j = await r.json();
     if (j.error)
       throw Object.assign(new Error(j.error), { body: j });
     return j;
   };
-  var api = (path, params) => request("GET", path, params);
-  var apiPost = (path, params) => request("POST", path, params);
+  var api = (path, params, opts) => request("GET", path, params, opts);
+  var apiPost = (path, params, opts) => request("POST", path, params, opts);
   var debounce = (fn, ms) => {
     let t;
     return (...a) => {
@@ -70,7 +70,8 @@
     chW: 7.8,
     wrap: true,
     lineNumbers: true,
-    mdPreview: true
+    mdPreview: true,
+    agentTargets: []
   };
   var doc_ = () => S2.active >= 0 ? S2.tabs[S2.active] : null;
 
@@ -81,17 +82,34 @@
   var editor = $("#editor");
   var toastEl = $("#toast");
   var toastTimer = 0;
-  function showToast(accentText, text) {
+  var toastLeaveTimer = 0;
+  function showToast(accentText, text, duration = 2200) {
     if (!toastEl)
       return;
-    toastEl.innerHTML = (accentText ? '<span class="toast-accent">' + esc(accentText) + "</span> " : "") + esc(text);
-    toastEl.hidden = false;
     clearTimeout(toastTimer);
+    clearTimeout(toastLeaveTimer);
+    toastEl.classList.remove("toast-hide");
+    let iconHtml = "";
+    if (accentText) {
+      if (accentText === "✓") {
+        iconHtml = '<span class="toast-icon toast-icon-ok"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-6"/></svg></span>';
+      } else if (accentText === "!") {
+        iconHtml = '<span class="toast-icon toast-icon-warn"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="4" x2="8" y2="9"/><circle cx="8" cy="12.5" r="0.6" fill="currentColor"/></svg></span>';
+      } else {
+        iconHtml = '<span class="toast-chip">' + esc(accentText) + "</span>";
+      }
+    }
+    toastEl.innerHTML = iconHtml + '<span class="toast-msg">' + esc(text) + "</span>";
+    toastEl.hidden = false;
     toastTimer = setTimeout(() => {
-      toastEl.hidden = true;
-    }, 2200);
+      toastEl.classList.add("toast-hide");
+      toastLeaveTimer = setTimeout(() => {
+        toastEl.hidden = true;
+        toastEl.classList.remove("toast-hide");
+      }, 180);
+    }, duration);
   }
-  async function copyToClipboard(text, notify = "Copied to clipboard") {
+  async function copyToClipboard(text, notify = "Copied") {
     try {
       await navigator.clipboard.writeText(text);
       showToast("✓", notify);
@@ -124,7 +142,7 @@
       return;
     const digits = String(d.total).length;
     editor.style.setProperty("--gw", digits);
-    const gutter = S2.lineNumbers ? digits * S2.chW + 30 : 16;
+    const gutter = digits * S2.chW + 30;
     const w = S2.wrap ? vp.clientWidth : Math.max(vp.clientWidth, gutter + (d.maxCols + 4) * S2.chW);
     sizer.style.height = d.total * LH + Math.max(120, vp.clientHeight * 0.5) + "px";
     sizer.style.width = w + "px";
@@ -140,23 +158,10 @@
     layout();
     render();
   }
-  function toggleLineNumbers(forced) {
-    S2.lineNumbers = typeof forced === "boolean" ? forced : !S2.lineNumbers;
-    document.body.classList.toggle("hide-lines", !S2.lineNumbers);
-    try {
-      localStorage.setItem("rivo.lineNumbers", S2.lineNumbers ? "true" : "false");
-    } catch {}
-    updateEditorOptionControls();
-    layout();
-    render();
-  }
   function updateEditorOptionControls() {
     const wrapBtn = $('[data-action="wrap"]');
     if (wrapBtn)
       wrapBtn.classList.toggle("active", !!S2.wrap);
-    const linesBtn = $('[data-action="line-numbers"]');
-    if (linesBtn)
-      linesBtn.classList.toggle("active", !!S2.lineNumbers);
   }
   var raf = 0;
   function render() {
@@ -182,12 +187,15 @@
     ensureChunks(d, first, last);
     let html = "";
     const gut = d.gutter || null;
+    const agentRanges = (S2.agentTargets || []).filter((t) => t.path === d.path);
     for (let i = first;i < last; i++) {
       const n = i + 1;
       const body = d.lines[i];
       let rc = "row", gc = "g";
       if (n === d.cur)
         rc += " cur";
+      if (agentRanges.some((r) => n >= r.l1 && n <= r.l2))
+        rc += " agent-sel";
       if (gut) {
         const m = gut.marks.get(n);
         if (m)
@@ -235,7 +243,7 @@
       y = cr.top;
     }
     const g = $(".g", row);
-    if (g && S2.lineNumbers && x < g.getBoundingClientRect().right - 1) {
+    if (g && x < g.getBoundingClientRect().right - 1) {
       el.hidden = true;
       return null;
     }
@@ -769,7 +777,6 @@
   }
   function initPanels() {
     $("#btn-reindex").addEventListener("click", async () => {
-      $("#st-index").textContent = "reindexing…";
       const j = await api("/api/reindex");
       S2.meta.files = j.files;
       S2.meta.indexMs = j.indexMs;
@@ -778,6 +785,7 @@
       await drawTree("", treeEl, 0);
       await reloadOpenTabs();
       updateStatus();
+      showToast("✓", "Workspace reindexed");
     });
     (() => {
       const rz = $("#resizer");
@@ -944,15 +952,26 @@
   // web/src/search.js
   var resultsEl = $("#results");
   var lastResults = null;
+  var searchAbort = null;
+  function cancelSearch() {
+    if (searchAbort) {
+      searchAbort.abort();
+      searchAbort = null;
+    }
+  }
   var runSearch = debounce(async () => {
     const qEl = $("#q");
     if (!qEl || !resultsEl)
       return;
     const q = qEl.value;
     if (!q.trim()) {
+      cancelSearch();
       resultsEl.innerHTML = "";
       return;
     }
+    cancelSearch();
+    const controller = new AbortController;
+    searchAbort = controller;
     resultsEl.innerHTML = '<div class="hint">searching…</div>';
     const params = {
       q,
@@ -962,10 +981,18 @@
       re: $("#o-re")?.classList.contains("on") ? 1 : ""
     };
     try {
-      const j = await api("/api/search", params);
-      renderResults(j);
+      const j = await api("/api/search", params, { signal: controller.signal });
+      if (searchAbort === controller) {
+        searchAbort = null;
+        renderResults(j);
+      }
     } catch (e) {
-      resultsEl.innerHTML = '<div class="hint">' + esc(e.message) + "</div>";
+      if (e.name === "AbortError")
+        return;
+      if (searchAbort === controller) {
+        searchAbort = null;
+        resultsEl.innerHTML = '<div class="hint">' + esc(e.message) + "</div>";
+      }
     }
   }, 160);
   function renderResults(j) {
@@ -1039,11 +1066,14 @@
     render();
   }
   function hideRightInspector() {
+    cancelSearch();
     document.body.classList.add("right-hidden");
     layout();
     render();
   }
   function setRightInspectorTab(tab) {
+    if (tab !== "search")
+      cancelSearch();
     $$(".inspector-tab").forEach((b) => b.classList.toggle("active", b.dataset.itab === tab));
     $("#pane-right-refs")?.classList.toggle("active", tab === "refs");
     $("#pane-right-symbols")?.classList.toggle("active", tab === "symbols");
@@ -1096,11 +1126,12 @@
     if (listEl)
       listEl.innerHTML = '<div class="hint">Finding references for "' + esc(at.word) + '"…</div>';
     if (canAskServer(at)) {
-      setStatusNote("references to " + at.word + "…");
+      setStatusNote("references to " + at.word + "…", 8000);
       try {
         const j = await lspCall("refs", at, 30000);
         updateStatus();
         if (j && j.hits && j.hits.length) {
+          setStatusNote("");
           renderRightResults(at.word, j.hits, j.server, true);
           return;
         }
@@ -1108,10 +1139,11 @@
         updateStatus();
       }
     }
-    setStatusNote("searching references to " + at.word + "…");
+    setStatusNote("searching references to " + at.word + "…", 8000);
     try {
       const j = await api("/api/search", { q: at.word, word: true, case: true });
       updateStatus();
+      setStatusNote("");
       const hits = [];
       if (j.results) {
         for (const f of j.results) {
@@ -1123,6 +1155,7 @@
       renderRightResults(at.word, hits, "", false);
     } catch (err) {
       updateStatus();
+      setStatusNote("");
       if (listEl)
         listEl.innerHTML = '<div class="hint">Search error: ' + esc(err.message) + "</div>";
     }
@@ -1249,7 +1282,7 @@
     if (!d || !at)
       return;
     if (canAskServer(at)) {
-      setStatusNote("definition of " + at.word + "…");
+      setStatusNote("definition of " + at.word + "…", 8000);
       const j = await lspCall("def", at, S2.lsp.state === "ready" ? 5000 : 20000);
       updateStatus();
       if (j && j.hits && j.hits.length) {
@@ -1262,18 +1295,19 @@
           showHits(at.word, j.hits, j.server, "definition");
       });
     }
-    setStatusNote("searching for " + at.word + "…");
+    setStatusNote("searching for " + at.word + "…", 8000);
     let rx;
     try {
       rx = await api("/api/def", { sym: at.word, path: d.path });
     } catch (e) {
-      setStatusNote(e.message);
+      setStatusNote(e.message, 4000);
       return;
     }
     updateStatus();
     if (rx.lsp)
       setLspState(rx.lsp);
     if (!rx.defs || !rx.defs.length) {
+      setStatusNote("");
       showRightInspector("search");
       const q = $("#q");
       if (q) {
@@ -1297,12 +1331,14 @@
       const h = hits[0];
       openFile(h.path, { line: h.line });
       flashFind(h.mid || word);
-      setStatusNote(server ? server + " · " + h.path + ":" + h.line : h.path + ":" + h.line);
+      setStatusNote(server ? server + " · " + h.path + ":" + h.line : h.path + ":" + h.line, 4000);
       return;
     }
+    setStatusNote("");
     showHits(word, hits, server, noun, refCount);
   }
   function showHits(word, hits, server, noun, refCount) {
+    setStatusNote("");
     const n = hits.length;
     let head = n + " " + noun + (n === 1 ? "" : "s") + ' of "' + word + '"';
     head += server ? "  ·  " + server : "  ·  text match, no language server";
@@ -1406,7 +1442,7 @@
     if (x == null || S2.wrap || !d)
       return;
     const g = rowFor(d.cur)?.querySelector(".g");
-    const gw = S2.lineNumbers && g ? g.offsetWidth : 0;
+    const gw = g ? g.offsetWidth : 0;
     if (x < vp.scrollLeft + gw + 8)
       vp.scrollLeft = Math.max(0, x - gw - 40);
     else if (x > vp.scrollLeft + vp.clientWidth - 24)
@@ -1749,7 +1785,7 @@
   // web/src/calls.js
   var T = null;
   var dirPref = "in";
-  var seq = 0;
+  var callSeq = 0;
   var flat = [];
   var listEl = () => $("#right-calls-list");
   var hint = (html) => {
@@ -1792,25 +1828,27 @@
       hint("Click a function name in the editor, then press <b>" + esc(keyLabel("Alt+Shift+H")) + "</b>.");
       return;
     }
-    const my = ++seq;
+    const my = ++callSeq;
     T = null;
     $("#right-calls-target").textContent = at.word;
     hint('Tracing calls for "' + esc(at.word) + '"…');
-    setStatusNote("call trail for " + at.word + "…");
+    setStatusNote("call trail for " + at.word + "…", 8000);
     let j;
     try {
       j = await api("/api/lsp/calls", { path: d.path, line: at.line, col: at.col, wait: S2.lsp.state === "ready" ? 1e4 : 30000 });
     } catch (e) {
-      if (my === seq) {
+      if (my === callSeq) {
         updateStatus();
+        setStatusNote("");
         hint('Could not trace "' + esc(at.word) + '": ' + esc(explain(e.message)));
       }
       return;
     }
-    if (my !== seq)
+    if (my !== callSeq)
       return;
     setLspState(j);
     updateStatus();
+    setStatusNote("");
     if (!j.nodes || !j.nodes.length) {
       hint('"' + esc(at.word) + '" is not a function ' + esc(j.server || "the language server") + " can trace.");
       return;
@@ -1995,23 +2033,24 @@
     S2.hover = at;
     S2.hoverAnchor = { x, y };
     const refPath = d.path + ":" + at.line;
-    hovercard.innerHTML = (j.signature ? '<div class="sig">' + j.signature + "</div>" : "") + (j.doc ? '<div class="doc">' + esc(j.doc) + "</div>" : "") + '<div class="actions">' + '<button id="hc-copy-ref" title="Copy file and line reference">Copy Ref</button>' + '<button id="hc-copy-ai" title="Copy snippet with file path for AI Agent / LLMs">Copy for Agent</button>' + '<button id="hc-find-refs" title="Find all usages across codebase">Usages</button>' + '<button id="hc-calls" title="' + withKeys("Trace callers and callees ({Alt+Shift+H})") + '">Calls</button>' + "</div>" + '<div class="foot"><b>' + esc(j.server || "lsp") + "</b>" + "<span>" + withKeys("{Mod+Click} definition") + "</span>" + "<span>" + withKeys("{Shift+F12} references") + "</span></div>";
+    hovercard.innerHTML = (j.signature ? '<div class="sig">' + j.signature + "</div>" : "") + (j.doc ? '<div class="doc">' + esc(j.doc) + "</div>" : "") + '<div class="actions">' + '<button id="hc-copy-ref" title="Copy file and line reference">Copy Ref</button>' + '<button id="hc-copy-ai" title="Copy snippet with file path and line numbers">Copy with Context</button>' + '<button id="hc-find-refs" title="Find all usages across codebase">Usages</button>' + '<button id="hc-calls" title="' + withKeys("Trace callers and callees ({Alt+Shift+H})") + '">Calls</button>' + "</div>" + '<div class="foot"><b>' + esc(j.server || "lsp") + "</b>" + "<span>" + withKeys("{Mod+Click} definition") + "</span>" + "<span>" + withKeys("{Shift+F12} references") + "</span></div>";
     const btnRef = hovercard.querySelector("#hc-copy-ref");
     const btnAi = hovercard.querySelector("#hc-copy-ai");
     const btnRefs = hovercard.querySelector("#hc-find-refs");
     if (btnRef)
       btnRef.onclick = (e) => {
         e.stopPropagation();
-        copyToClipboard(refPath, "Copied " + refPath);
+        copyToClipboard(refPath, "Copied");
       };
     if (btnAi)
       btnAi.onclick = (e) => {
         e.stopPropagation();
         const lineText = d.lines[at.line - 1] || at.word || "";
         const ext = d.path.split(".").pop() || "";
-        const text = "### Reference: " + refPath + "\n```" + ext + `
+        const lineStr = "line " + at.line;
+        const text = "@" + d.path + " " + lineStr + "\n```" + ext + `
 ` + lineText + "\n```";
-        copyToClipboard(text, "Copied snippet for Agent (" + refPath + ")");
+        copyToClipboard(text, "Copied");
       };
     if (btnRefs)
       btnRefs.onclick = (e) => {
@@ -2570,7 +2609,7 @@
     if (!d)
       return;
     if (!d.diffMode && !d.diffAvailable) {
-      setStatusNote("No diff — clean file or not a git repo");
+      setStatusNote("No diff — clean file or not a git repo", 4000);
       return;
     }
     setDiffMode(d.diffMode ? "source" : layoutPref() || "split");
@@ -2580,7 +2619,7 @@
     if (!d)
       return;
     if (mode !== "source" && !d.diffAvailable) {
-      setStatusNote("No diff — clean file or not a git repo");
+      setStatusNote("No diff — clean file or not a git repo", 4000);
       return;
     }
     if (mode === "source") {
@@ -2606,7 +2645,7 @@
       } catch (e) {
         d.diffText = "";
         d.diffHunks = [];
-        setStatusNote("No diff: " + e.message);
+        setStatusNote("No diff: " + e.message, 4000);
       } finally {
         d.diffReq = null;
       }
@@ -2634,11 +2673,25 @@
       frag.append(d.diffMode === "unified" ? unifiedTable(hunk) : splitTable(hunk));
     }
     diffContent.append(frag);
+    syncDiffAgentTargets();
+  }
+  function syncDiffAgentTargets() {
+    if (!diffview || diffview.hidden)
+      return;
+    const d = doc_();
+    if (!d)
+      return;
+    const ranges = (S2.agentTargets || []).filter((t) => t.path === d.path);
+    for (const el of diffview.querySelectorAll("[data-l]")) {
+      const l = +el.dataset.l;
+      const inAgent = ranges.some((r) => l >= r.l1 && l <= r.l2);
+      el.classList.toggle("agent-sel", inAgent);
+    }
   }
   function hunkHeader(hunk) {
     const el = document.createElement("div");
     el.className = "diff-hunk-head";
-    el.textContent = "@@ -" + hunk.oldStart + " +" + hunk.newStart + " @@" + (hunk.section ? " " + hunk.section : "");
+    el.textContent = "@@ -" + hunk.oldStart + " +" + hunk.newStart + " @@";
     return el;
   }
   var HUNK_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@[ \t]?(.*)$/;
@@ -2816,11 +2869,6 @@
         item.classList.toggle("active", item.dataset.diffOpt === currentLayout);
       }
     }
-    const idxEl = $("#st-index");
-    if (idxEl && S2.meta) {
-      idxEl.textContent = S2.meta.indexMs + "ms";
-      idxEl.title = `Workspace Indexing: took ${S2.meta.indexMs}ms to index ${S2.meta.files.toLocaleString()} files (${S2.meta.ready ? "ready" : "in progress"})`;
-    }
     const verEl = $("#st-ver");
     if (verEl && S2.meta?.version) {
       verEl.textContent = "v" + S2.meta.version;
@@ -2828,10 +2876,22 @@
     }
     drawLspStatus();
   }
-  function setStatusNote(msg) {
+  var noteTimer = null;
+  function setStatusNote(msg, timeoutMs = 0) {
+    if (noteTimer) {
+      clearTimeout(noteTimer);
+      noteTimer = null;
+    }
     const el = $("#st-pos");
     if (el)
-      el.textContent = msg;
+      el.textContent = msg || "";
+    if (msg && timeoutMs > 0) {
+      noteTimer = setTimeout(() => {
+        if (el && el.textContent === msg)
+          el.textContent = "";
+        noteTimer = null;
+      }, timeoutMs);
+    }
   }
   function fmtBytes(n) {
     if (n < 1024)
@@ -2869,21 +2929,71 @@
     if (state === "failed")
       el.title = "The language server did not start. Click for details.";
   }
+  var metricsMenuEl = $("#metrics-menu");
+  var lastMetrics = null;
+  function renderMetricsMenu(m) {
+    if (!metricsMenuEl || !m)
+      return;
+    metricsMenuEl.innerHTML = `
+    <div class="metrics-title">
+      <span>Process Metrics</span>
+      <span class="toast-chip">rivo</span>
+    </div>
+    <div class="metrics-grid">
+      <div class="metrics-row">
+        <span class="metrics-label">Resident RAM (RSS)</span>
+        <span class="metrics-val">${fmtBytes(m.rssBytes)}</span>
+      </div>
+      <div class="metrics-row">
+        <span class="metrics-label">CPU Usage</span>
+        <span class="metrics-val">${m.cpuUsage.toFixed(1)}%</span>
+      </div>
+      <div class="metrics-row">
+        <span class="metrics-label">Active Goroutines</span>
+        <span class="metrics-val">${m.goroutines || 0}</span>
+      </div>
+    </div>
+  `;
+  }
+  function closeMetricsMenu() {
+    if (metricsMenuEl)
+      metricsMenuEl.hidden = true;
+  }
+  function placeMetricsMenu() {
+    const contEl = $("#st-metrics");
+    if (!contEl || !metricsMenuEl)
+      return;
+    const r = contEl.getBoundingClientRect();
+    metricsMenuEl.style.bottom = innerHeight - r.top + 6 + "px";
+    metricsMenuEl.style.right = Math.max(8, innerWidth - r.right) + "px";
+    metricsMenuEl.style.left = "auto";
+  }
+  function toggleMetricsMenu() {
+    if (!metricsMenuEl)
+      return;
+    if (!metricsMenuEl.hidden) {
+      closeMetricsMenu();
+      return;
+    }
+    if (lastMetrics)
+      renderMetricsMenu(lastMetrics);
+    metricsMenuEl.hidden = false;
+    placeMetricsMenu();
+    refreshMetrics();
+  }
   function updateMetricsDisplay(m) {
     if (!m)
       return;
+    lastMetrics = m;
     const cpuEl = $("#st-cpu");
     const ramEl = $("#st-ram");
-    const contEl = $("#st-metrics");
     if (cpuEl)
       cpuEl.textContent = `${m.cpuUsage.toFixed(1)}%`;
     if (ramEl)
       ramEl.textContent = fmtBytes(m.rssBytes);
-    if (contEl) {
-      contEl.title = `Editor OS Process Usage:
-• Resident RAM (RSS): ${fmtBytes(m.rssBytes)}
-• CPU Usage: ${m.cpuUsage.toFixed(1)}%
-• Active Goroutines: ${m.goroutines || 0}`;
+    if (metricsMenuEl && !metricsMenuEl.hidden) {
+      renderMetricsMenu(m);
+      placeMetricsMenu();
     }
   }
   async function refreshMetrics() {
@@ -2893,6 +3003,27 @@
     } catch {}
   }
   function initMetrics() {
+    const contEl = $("#st-metrics");
+    if (contEl) {
+      contEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleMetricsMenu();
+      });
+      contEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleMetricsMenu();
+        }
+      });
+    }
+    addEventListener("click", (e) => {
+      if (!e.target.closest("#metrics-menu, #st-metrics"))
+        closeMetricsMenu();
+    });
+    addEventListener("keydown", (e) => {
+      if (e.key === "Escape")
+        closeMetricsMenu();
+    });
     refreshMetrics();
     setInterval(refreshMetrics, 2500);
   }
@@ -2914,7 +3045,7 @@
   // web/src/selbar.js
   var status = $("#status");
   var statsEl = $("#sel-stats");
-  var diffview2 = $("#diffview");
+  var diffviewEl = $("#diffview");
   var SEL_KEYS = { KeyC: "copy-ref", KeyA: "copy-agent", KeyU: "usages", KeyE: "agent-edit" };
   var agentHandler = null;
   function setAgentHandler(fn) {
@@ -2933,7 +3064,7 @@
     if (!d)
       return null;
     const range = sel.getRangeAt(0);
-    if (diffview2 && !diffview2.hidden && diffview2.contains(range.commonAncestorContainer)) {
+    if (diffviewEl && !diffviewEl.hidden && diffviewEl.contains(range.commonAncestorContainer)) {
       return diffSelection(range, d);
     }
     if (!vp.contains(range.commonAncestorContainer))
@@ -2965,7 +3096,7 @@
     let l1 = Infinity, l2 = -Infinity, at1 = Infinity, at2 = -Infinity;
     const parts = [];
     const seen = new Set;
-    for (const el of diffview2.querySelectorAll("[data-l], [data-at]")) {
+    for (const el of diffviewEl.querySelectorAll("[data-l], [data-at]")) {
       if (!range.intersectsNode(el))
         continue;
       const code = el.querySelector(".diff-code");
@@ -3000,12 +3131,10 @@
       return null;
     return { text, l1, l2, path: d.path, fromDiff: true };
   }
-  var refOf = ({ path, l1, l2 }) => path + ":" + (l1 === l2 ? l1 : l1 + "-" + l2);
+  var selectionRef = ({ path, l1, l2 }) => path + ":" + (l1 === l2 ? l1 : l1 + "-" + l2);
   function showSelectionBar(info) {
     current = info;
-    const ref = refOf(info);
     const lines = info.l2 - info.l1 + 1;
-    statsEl.title = ref;
     statsEl.textContent = (lines === 1 ? "1 line" : lines + " lines") + " · " + info.text.length.toLocaleString() + " chars";
     status.classList.add("selecting");
     fitStatus();
@@ -3015,6 +3144,8 @@
     if (!current)
       return;
     current = null;
+    if (statsEl)
+      statsEl.textContent = "";
     status.classList.remove("selecting");
     fitStatus();
   }
@@ -3070,13 +3201,15 @@
     if (!current)
       return false;
     const { text, path } = current;
-    const ref = refOf(current);
+    const ref = selectionRef(current);
     if (act === "copy-ref") {
-      copyToClipboard(ref, "Copied " + ref);
+      copyToClipboard(ref, "Copied");
     } else if (act === "copy-agent") {
       const ext = path.split(".").pop() || "";
-      copyToClipboard("### Reference: " + ref + "\n```" + ext + `
-` + text + "\n```", "Copied snippet for Agent (" + ref + ")");
+      const lineStr = current.l1 === current.l2 ? "line " + current.l1 : "lines " + current.l1 + "-" + current.l2;
+      const snippet = "@" + path + " " + lineStr + "\n```" + ext + `
+` + text + "\n```";
+      copyToClipboard(snippet, "Copied");
     } else if (act === "agent-edit") {
       if (!agentHandler)
         return false;
@@ -3093,22 +3226,27 @@
     if (menu && !menu.hidden)
       menu.hidden = true;
   }
+  var SEL_MENU_ITEMS = [
+    { sel: "copy-ref", label: "Copy Ref", keys: "Alt+C" },
+    { sel: "copy-agent", label: "Copy with Context", keys: "Alt+A" },
+    { sel: "agent-edit", label: "Edit Inline", keys: "Alt+E" },
+    { sel: "usages", label: "Find Usages", keys: "Alt+U" }
+  ];
   function openSelMenu(x, y) {
     menu.replaceChildren();
-    for (const src of bar().querySelectorAll("[data-sel]")) {
-      if (src.hidden)
-        continue;
-      const item = document.createElement("button");
-      item.className = "sel-menu-item";
-      item.dataset.sel = src.dataset.sel;
-      item.setAttribute("role", "menuitem");
+    for (const item of SEL_MENU_ITEMS) {
+      const btn = document.createElement("button");
+      btn.className = "sel-menu-item";
+      btn.dataset.sel = item.sel;
+      btn.setAttribute("role", "menuitem");
       const label = document.createElement("span");
-      label.textContent = src.querySelector(".footer-btn-label").textContent;
-      item.append(label);
-      const kbd = src.querySelector("kbd");
-      if (kbd)
-        item.append(kbd.cloneNode(true));
-      menu.append(item);
+      label.textContent = item.label;
+      btn.append(label);
+      const kbd = document.createElement("kbd");
+      kbd.className = "footer-kbd";
+      kbd.textContent = keyLabel(item.keys);
+      btn.append(kbd);
+      menu.append(btn);
     }
     menu.hidden = false;
     const { offsetWidth: w, offsetHeight: h } = menu;
@@ -3149,7 +3287,7 @@
         e.preventDefault();
         return;
       }
-      const inCode = vp.contains(e.target) || diffview2 && !diffview2.hidden && diffview2.contains(e.target);
+      const inCode = vp.contains(e.target) || diffviewEl && !diffviewEl.hidden && diffviewEl.contains(e.target);
       if (!inCode) {
         closeSelMenu();
         return;
@@ -3187,7 +3325,7 @@
       try {
         j = await api("/api/file", { path, start, count: CHUNK });
       } catch (e) {
-        setStatusNote(path + ": " + e.message);
+        setStatusNote(path + ": " + e.message, 4000);
         return;
       }
       if (j.image) {
@@ -3312,7 +3450,7 @@
         continue;
       if (res.status !== "fulfilled") {
         if (idx === S2.active) {
-          setStatusNote(tgt.path + ": " + (res.reason?.message || "failed to load"));
+          setStatusNote(tgt.path + ": " + (res.reason?.message || "failed to load"), 4000);
         }
         continue;
       }
@@ -3519,6 +3657,7 @@
 
   // web/src/theme.js
   var KEY = "rivo.theme";
+  var DEFAULT_THEME = "github-dark";
   var THEME_SELECTOR = /^(?::root|html)?\[data-theme=["']?([\w-]+)["']?\]$/;
   var themes = null;
   function listThemes() {
@@ -3588,6 +3727,8 @@
     } catch {}
     if (saved && setTheme(saved, false))
       return;
+    if (setTheme(DEFAULT_THEME, false))
+      return;
     const all = listThemes();
     if (all.length && !all.some((t) => t.id === currentTheme()))
       setTheme(all[0].id, false);
@@ -3604,7 +3745,6 @@
     [["Mod+G"], "Go to line"],
     [["Mod+D"], "Toggle diff view (git)"],
     [["Alt+Z"], "Toggle word wrap"],
-    [["Alt+L"], "Toggle line numbers"],
     [["Alt+M"], "Toggle Markdown preview"],
     [["Enter", "Shift+Enter"], "Next / previous match"],
     [["F12", "Mod+Click"], "Go to definition"],
@@ -3619,9 +3759,9 @@
     [["Alt+1…9"], "Select tab"],
     [["Double click"], "Highlight all occurrences"],
     [["Mod+A"], "Select whole file"],
-    [["Alt+C", "Alt+A"], "Copy selection ref / for agent"],
+    [["Alt+C", "Alt+A"], "Copy selection ref / with context"],
     [["Alt+U"], "Find usages of selection"],
-    [["Alt+E"], "Edit selection with a coding harness"],
+    [["Alt+E"], "Edit selection inline"],
     [["Right click"], "Selection actions at the pointer"],
     [["Mod+Home|Mod+Up", "Mod+End|Mod+Down"], "Top / bottom of file"],
     [["Home|Mod+Left", "End|Mod+Right"], "Start / end of line"],
@@ -3660,8 +3800,6 @@
         openPalette("line");
       else if (act === "wrap")
         toggleWordWrap();
-      else if (act === "line-numbers")
-        toggleLineNumbers();
       else if (act === "md-preview")
         togglePreview();
       else if (act === "palette")
@@ -3816,11 +3954,6 @@
       if (e.altKey && e.code === "KeyZ") {
         e.preventDefault();
         toggleWordWrap();
-        return;
-      }
-      if (e.altKey && e.code === "KeyL") {
-        e.preventDefault();
-        toggleLineNumbers();
         return;
       }
       if (e.altKey && !mod && !e.shiftKey && e.code === "KeyM") {
@@ -3978,7 +4111,6 @@
       }
     } },
     { name: withKeys("Toggle Word Wrap ({Alt+Z})"), run: () => toggleWordWrap() },
-    { name: withKeys("Toggle Line Numbers ({Alt+L})"), run: () => toggleLineNumbers() },
     { name: withKeys("Toggle Markdown Preview ({Alt+M})"), run: () => togglePreview() },
     { name: withKeys("Toggle Sidebar ({Mod+B})"), run: () => document.body.classList.toggle("side-hidden") },
     { name: "Select Theme…", run: () => openPalette("theme") },
@@ -4176,71 +4308,226 @@
 
   // web/src/agent.js
   var box = $("#agentbox");
-  var input = $("#agent-input");
-  var refEl = $("#agent-ref");
-  var harnessBtn = $("#agent-harness");
-  var pickEl = $("#agent-pick");
-  var composeEl = $("#agent-compose");
-  var sendBtn = $("#agent-send");
-  var hintEl = $(".agent-hint");
-  var errEl = $("#agent-err");
-  var target2 = null;
-  var timer = null;
+  var tpl = $("#agentbox-tpl");
+  var sessions = new Map;
+  var agentSeq = 0;
   var installed = () => (S2.meta?.agents || []).filter((h) => h.installed);
   var chosen = () => S2.meta && S2.meta.agent || "";
-  var offerable = () => !!chosen() || installed().length > 0;
-  var refOf2 = ({ path, l1, l2 }) => path + ":" + (l1 === l2 ? l1 : l1 + "-" + l2);
+  var chosenModel = () => S2.meta && S2.meta.agentModel || "";
+  var targetRef = ({ path, l1, l2 }) => path + ":" + (l1 === l2 ? l1 : l1 + "-" + l2);
+  var rangesOverlap = (a, b) => a.path === b.path && a.l1 <= b.l2 && b.l1 <= a.l2;
   function applyAgentMeta() {
-    const btn = $('[data-sel="agent-edit"]');
-    if (btn)
-      btn.hidden = !offerable();
-    const foot = $('[data-action="agent-harness"]');
-    if (foot) {
-      foot.hidden = !offerable();
-      foot.querySelector(".footer-btn-label").textContent = "Agent: " + (chosen() || "choose");
-      foot.title = S2.meta && S2.meta.agentPinned ? "Coding harness, fixed for this run by -agent" : "Coding harness for Edit with Agent. Click to change";
+    for (const session of sessions.values()) {
+      updateSessionMeta(session);
     }
-    if (harnessBtn) {
-      harnessBtn.textContent = chosen() || "choose harness";
-      harnessBtn.disabled = !!(S2.meta && S2.meta.agentPinned);
-      harnessBtn.title = S2.meta && S2.meta.agentPinned ? "Fixed for this run by -agent" : "Change the coding harness";
+  }
+  function updateSessionMeta(session) {
+    if (!session.harnessSelect || !session.modelSelect)
+      return;
+    const ready = (S2.meta?.agents || []).filter((h) => h.installed);
+    const currentHarness = chosen();
+    const currentModel = chosenModel();
+    session.harnessSelect.innerHTML = "";
+    if (!ready.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "no harness";
+      session.harnessSelect.appendChild(opt);
+      session.harnessSelect.disabled = true;
+      session.modelSelect.innerHTML = "";
+      session.modelSelect.hidden = true;
+      return;
     }
+    for (const h of ready) {
+      const opt = document.createElement("option");
+      opt.value = h.name;
+      opt.textContent = h.name;
+      if (h.name === currentHarness)
+        opt.selected = true;
+      session.harnessSelect.appendChild(opt);
+    }
+    const isBusy = session.el.classList.contains("busy");
+    session.harnessSelect.disabled = isBusy || !!(S2.meta && S2.meta.agentPinned);
+    session.harnessSelect.title = S2.meta && S2.meta.agentPinned ? "Fixed for this run by -agent" : "Change the coding harness";
+    const activeH = ready.find((h) => h.name === (session.harnessSelect.value || currentHarness)) || ready[0];
+    session.modelSelect.innerHTML = "";
+    const models = activeH?.models || [];
+    if (models.length > 0) {
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        if (m === currentModel)
+          opt.selected = true;
+        session.modelSelect.appendChild(opt);
+      }
+      session.modelSelect.hidden = false;
+      session.modelSelect.disabled = isBusy;
+      session.modelSelect.title = "Model for " + activeH.name;
+    } else {
+      session.modelSelect.hidden = true;
+    }
+  }
+  async function loadAgentAsync() {
+    try {
+      const j = await api("/api/agent/harnesses");
+      S2.meta.agents = j.harnesses || [];
+      S2.meta.agent = j.selected || S2.meta.agent || "";
+      S2.meta.agentModel = j.model || S2.meta.agentModel || "";
+      S2.meta.agentPinned = !!j.pinned;
+      applyAgentMeta();
+    } catch {}
+  }
+  function anyInFlight() {
+    for (const s of sessions.values())
+      if (s.timer)
+        return true;
+    return false;
+  }
+  function syncBoxVisibility() {
+    box.hidden = sessions.size === 0;
   }
   function openAgentEdit(info) {
-    if (!offerable() || !info)
+    if (!info)
       return;
-    if (timer) {
-      showToast("!", "An edit is already running");
-      return;
+    for (const s of sessions.values()) {
+      if (rangesOverlap(s.target, info)) {
+        showToast("!", "Overlaps the edit already open on " + targetRef(s.target));
+        return;
+      }
     }
-    target2 = info;
-    refEl.textContent = refOf2(info);
-    refEl.title = refOf2(info);
-    setBusy(false);
-    resetHint();
-    clearErr();
-    input.value = "";
-    box.hidden = false;
-    if (chosen())
-      showCompose();
-    else
-      showPicker();
+    const session = createSession(info);
+    sessions.set(session.id, session);
+    syncAgentTargets();
+    applyAgentMeta();
+    syncBoxVisibility();
+    if (chosen() && installed().some((h) => h.name === chosen())) {
+      showCompose(session);
+    } else {
+      showPicker(session);
+    }
   }
-  function closeAgentEdit() {
-    if (timer)
+  function syncAgentTargets() {
+    S2.agentTargets = [...sessions.values()].map((s) => ({
+      id: s.id,
+      path: s.target.path,
+      l1: s.target.l1,
+      l2: s.target.l2
+    }));
+    render();
+    syncDiffAgentTargets();
+  }
+  function createSession(info) {
+    const el = tpl.content.firstElementChild.cloneNode(true);
+    box.prepend(el);
+    const session = {
+      id: ++agentSeq,
+      target: info,
+      timer: null,
+      jobId: null,
+      harness: "",
+      el,
+      refEl: el.querySelector(".agent-ref"),
+      metaEl: el.querySelector(".agent-meta"),
+      harnessSelect: el.querySelector(".agent-harness-select"),
+      modelSelect: el.querySelector(".agent-model-select"),
+      closeBtn: el.querySelector(".agent-close"),
+      pickEl: el.querySelector(".agent-pick"),
+      composeEl: el.querySelector(".agent-compose"),
+      input: el.querySelector(".agent-input"),
+      sendBtn: el.querySelector(".agent-send"),
+      cancelBtn: el.querySelector(".agent-cancel"),
+      hintEl: el.querySelector(".agent-hint"),
+      errEl: el.querySelector(".agent-err")
+    };
+    wireSession(session);
+    refreshRef(session);
+    setBusy(session, false);
+    resetHint(session);
+    clearErr(session);
+    session.input.value = "";
+    session.input.focus();
+    return session;
+  }
+  function wireSession(session) {
+    session.sendBtn.addEventListener("click", () => submit(session));
+    session.cancelBtn?.addEventListener("click", () => cancelSession(session));
+    session.closeBtn.addEventListener("click", () => closeAgentEdit(session));
+    if (session.harnessSelect) {
+      session.harnessSelect.addEventListener("change", async () => {
+        const hName = session.harnessSelect.value;
+        if (!hName)
+          return;
+        await select(hName, (msg) => showErr(session, msg));
+        session.input.focus();
+      });
+    }
+    if (session.modelSelect) {
+      session.modelSelect.addEventListener("change", async () => {
+        const hName = session.harnessSelect?.value || chosen();
+        const mName = session.modelSelect.value;
+        await select(hName, mName, (msg) => showErr(session, msg));
+        session.input.focus();
+      });
+    }
+    session.el.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (session.timer || session.jobId) {
+          cancelSession(session);
+        } else {
+          closeAgentEdit(session);
+        }
+      } else if (e.key === "Enter" && !e.shiftKey && !session.composeEl.hidden && !session.timer) {
+        e.preventDefault();
+        submit(session);
+      }
+    });
+  }
+  async function cancelSession(session) {
+    if (!session.timer && !session.jobId)
       return;
-    box.hidden = true;
-    setBusy(false);
-    clearErr();
-    target2 = null;
+    if (session.timer) {
+      clearTimeout(session.timer);
+      session.timer = null;
+    }
+    const jobId = session.jobId;
+    session.jobId = null;
+    setBusy(session, false);
+    resetHint(session);
+    refreshStatusNote();
+    showToast("!", "Cancelled edit on " + targetRef(session.target));
+    if (jobId) {
+      try {
+        await apiPost("/api/agent/cancel", { id: jobId });
+      } catch {}
+    }
+    session.input.focus();
   }
-  function clearErr() {
+  function closeAgentEdit(session) {
+    if (session.timer || session.jobId) {
+      cancelSession(session);
+    }
+    sessions.delete(session.id);
+    session.el.remove();
+    syncBoxVisibility();
+    syncAgentTargets();
+  }
+  function refreshRef(session) {
+    const ref = targetRef(session.target);
+    session.refEl.textContent = ref;
+    session.refEl.title = ref;
+  }
+  function clearErr(session) {
+    const errEl = session.errEl;
     if (!errEl)
       return;
     errEl.textContent = "";
     errEl.hidden = true;
   }
-  function showErr(msg, streams = []) {
+  function showErr(session, msg, streams = []) {
+    const errEl = session.errEl;
     if (!errEl)
       return;
     errEl.textContent = "";
@@ -4261,28 +4548,39 @@
     }
     errEl.hidden = false;
   }
-  function resetHint() {
-    if (!hintEl)
+  function resetHint(session) {
+    if (!session.hintEl)
       return;
-    hintEl.textContent = target2?.fromDiff ? "Editing uncommitted changes · Enter to send" : "Enter to send, Esc to cancel";
+    session.hintEl.textContent = "Enter to send, Esc to cancel";
   }
-  function setBusy(busy, msg) {
-    box.classList.toggle("busy", busy);
-    input.disabled = busy;
-    sendBtn.disabled = busy;
-    harnessBtn.disabled = busy || !!(S2.meta && S2.meta.agentPinned);
-    if (hintEl && msg)
-      hintEl.textContent = msg;
+  function setBusy(session, busy, msg) {
+    session.el.classList.toggle("busy", busy);
+    session.input.disabled = busy;
+    if (session.sendBtn)
+      session.sendBtn.hidden = busy;
+    if (session.cancelBtn)
+      session.cancelBtn.hidden = !busy;
+    session.closeBtn.disabled = false;
+    if (session.harnessSelect)
+      session.harnessSelect.disabled = busy || !!(S2.meta && S2.meta.agentPinned);
+    if (session.modelSelect)
+      session.modelSelect.disabled = busy;
+    if (session.hintEl && msg)
+      session.hintEl.textContent = msg;
   }
-  function showCompose() {
-    pickEl.hidden = true;
-    composeEl.hidden = false;
-    input.focus();
+  function showCompose(session) {
+    session.pickEl.hidden = true;
+    if (session.metaEl)
+      session.metaEl.hidden = false;
+    session.composeEl.hidden = false;
+    session.input.focus();
   }
-  async function showPicker() {
-    composeEl.hidden = true;
-    pickEl.hidden = false;
-    pickEl.innerHTML = '<div class="hint">Looking for coding harnesses…</div>';
+  async function showPicker(session) {
+    session.composeEl.hidden = true;
+    if (session.metaEl)
+      session.metaEl.hidden = true;
+    session.pickEl.hidden = false;
+    session.pickEl.innerHTML = '<div class="hint">Looking for coding harnesses…</div>';
     let list = S2.meta?.agents || [];
     let settingsPath = "";
     try {
@@ -4291,172 +4589,161 @@
       settingsPath = j.settings || "";
       S2.meta.agents = list;
       S2.meta.agent = j.selected || "";
+      S2.meta.agentModel = j.model || "";
       S2.meta.agentPinned = !!j.pinned;
     } catch (e) {
-      pickEl.innerHTML = '<div class="hint">Could not look for harnesses: ' + esc(e.message) + "</div>";
+      session.pickEl.innerHTML = '<div class="hint">Could not look for harnesses: ' + esc(e.message) + "</div>";
       return;
     }
     const ready = list.filter((h) => h.installed);
     if (!ready.length) {
-      pickEl.innerHTML = '<div class="hint">No coding harness found. Install ' + list.map((h) => "<b>" + esc(h.name) + "</b>").join(", ") + " and make sure it is on PATH.</div>";
+      showToast("!", "Could not find any coding harness like Claude Code, OpenCode, Codex, Antigravity, Aider, etc. Install one and restart rivo.", 6000);
+      session.pickEl.innerHTML = '<div class="hint" style="line-height: 1.5; padding: 4px 2px;">' + "Could not find any coding harness like <b>Claude Code</b>, <b>OpenCode</b>, <b>Codex</b>, <b>Antigravity</b> (<code>agy</code>), <b>Aider</b>, <b>Goose</b>, <b>Gemini CLI</b>, or <b>Cursor Agent</b>.<br><br>" + "Please install a coding harness, make sure it is on your <code>PATH</code>, and restart rivo after that.</div>";
       return;
     }
-    pickEl.innerHTML = '<div class="hint">This harness will edit files in this workspace.</div>' + optionsHtml(ready, settingsPath);
-    pickEl.querySelectorAll("[data-pick]").forEach((b) => {
-      b.addEventListener("click", () => pick(b.dataset.pick));
+    session.pickEl.innerHTML = '<div class="hint">This harness will edit files in this workspace.</div>' + optionsHtml(ready, settingsPath);
+    session.pickEl.querySelectorAll("[data-pick]").forEach((b) => {
+      b.addEventListener("click", () => pick(session, b.dataset.pick));
+    });
+    session.pickEl.querySelectorAll(".agent-model-select").forEach((sel) => {
+      sel.addEventListener("change", async (e) => {
+        e.stopPropagation();
+        await select(sel.dataset.harness, sel.value, (msg) => showErr(session, msg));
+        showPicker(session);
+      });
     });
   }
   function optionsHtml(ready, settingsPath) {
     let html = "";
     for (const h of ready) {
-      html += '<button class="agent-opt' + (h.name === chosen() ? " on" : "") + '" data-pick="' + esc(h.name) + '">' + '<span class="agent-opt-name">' + esc(h.name) + "</span>" + '<code class="agent-opt-cmd">' + esc(h.cmd) + "</code></button>";
+      const isSelected = h.name === chosen();
+      html += '<div class="agent-opt-wrap">' + '<button class="agent-opt' + (isSelected ? " on" : "") + '" data-pick="' + esc(h.name) + '">' + '<span class="agent-opt-name">' + esc(h.name) + "</span>" + '<code class="agent-opt-cmd">' + esc(h.cmd) + "</code></button>";
+      if (isSelected && h.models && h.models.length > 0) {
+        html += '<div class="agent-model-row">' + '<span class="agent-model-label">Model:</span>' + '<select class="agent-model-select" data-harness="' + esc(h.name) + '">';
+        for (const m of h.models) {
+          const sel = m === (h.model || chosenModel()) ? " selected" : "";
+          html += '<option value="' + esc(m) + '"' + sel + ">" + esc(m) + "</option>";
+        }
+        html += "</select></div>";
+      }
+      html += "</div>";
     }
     if (settingsPath)
       html += '<div class="agent-note">Remembered in ' + esc(settingsPath) + "</div>";
     return html;
   }
-  async function pick(name) {
-    if (await select(name, showErr))
-      showCompose();
+  async function pick(session, name) {
+    if (await select(name, (msg) => showErr(session, msg)))
+      showCompose(session);
   }
-  async function select(name, onError) {
+  async function select(name, model, onError) {
+    if (typeof model === "function") {
+      onError = model;
+      model = "";
+    }
     try {
-      const j = await apiPost("/api/agent/select", { name });
+      const params = { name };
+      if (model)
+        params.model = model;
+      const j = await apiPost("/api/agent/select", params);
       S2.meta.agent = j.selected || "";
+      S2.meta.agentModel = j.model || "";
       S2.meta.agents = j.harnesses || S2.meta.agents;
       S2.meta.agentPinned = !!j.pinned;
     } catch (e) {
-      onError(e.message);
+      if (onError)
+        onError(e.message);
       return false;
     }
     applyAgentMeta();
-    showToast("✓", "Edits will run through " + name);
     return true;
   }
-  var footBtn = $('[data-action="agent-harness"]');
-  var menuEl = $("#agent-menu");
-  function closeMenu() {
-    if (menuEl)
-      menuEl.hidden = true;
-  }
-  async function toggleMenu() {
-    if (!menuEl.hidden) {
-      closeMenu();
+  async function submit(session) {
+    if (session.timer)
       return;
-    }
-    menuEl.innerHTML = '<div class="hint">Looking for coding harnesses…</div>';
-    menuEl.hidden = false;
-    placeMenu();
-    let j;
+    clearErr(session);
+    const instruction = session.input.value.trim();
+    if (!instruction || !session.target)
+      return;
+    const params = { path: session.target.path, l1: session.target.l1, l2: session.target.l2, instruction };
+    let job;
     try {
-      j = await api("/api/agent/harnesses");
+      job = await apiPost("/api/agent/edit", params);
     } catch (e) {
-      menuEl.innerHTML = '<div class="hint">Could not look for harnesses: ' + esc(e.message) + "</div>";
+      showErr(session, e.message);
       return;
     }
-    S2.meta.agents = j.harnesses || [];
-    S2.meta.agent = j.selected || "";
-    S2.meta.agentPinned = !!j.pinned;
-    applyAgentMeta();
-    if (menuEl.hidden)
-      return;
-    const ready = S2.meta.agents.filter((h) => h.installed);
-    let html = '<div class="hint">Coding harness for Edit with Agent</div>';
-    if (!ready.length) {
-      html += '<div class="hint">None found. Install ' + S2.meta.agents.map((h) => "<b>" + esc(h.name) + "</b>").join(", ") + " and make sure it is on PATH.</div>";
-    } else {
-      html += optionsHtml(ready, j.settings || "");
-      if (S2.meta.agentPinned)
-        html += '<div class="agent-note">Fixed for this run by -agent</div>';
-    }
-    menuEl.innerHTML = html;
-    menuEl.classList.toggle("pinned", S2.meta.agentPinned);
-    placeMenu();
-  }
-  function placeMenu() {
-    const r = footBtn.getBoundingClientRect();
-    menuEl.style.bottom = innerHeight - r.top + 4 + "px";
-    menuEl.style.left = Math.max(8, Math.min(r.left, innerWidth - menuEl.offsetWidth - 8)) + "px";
-  }
-  async function submit() {
-    if (timer)
-      return;
-    clearErr();
-    const instruction = input.value.trim();
-    if (!instruction || !target2)
-      return;
-    const params = { path: target2.path, l1: target2.l1, l2: target2.l2, instruction };
-    if (target2.fromDiff)
-      params.force = 1;
-    try {
-      await apiPost("/api/agent/edit", params);
-    } catch (e) {
-      if (!/uncommitted/.test(e.message) || !confirm(e.message + `
-
-Run the edit anyway?`)) {
-        showErr(e.message);
-        return;
-      }
-      try {
-        await apiPost("/api/agent/edit", { ...params, force: 1 });
-      } catch (e2) {
-        showErr(e2.message);
-        return;
-      }
-    }
+    session.jobId = job.id;
+    session.harness = job.harness;
     hideSelectionBar();
-    setUndo(null);
-    const initialNote = "Editing with " + chosen() + "...";
-    setBusy(true, initialNote);
-    setStatusNote(initialNote);
-    timer = setTimeout(tick, 400);
+    const initialNote = "Editing with " + (chosenModel() ? chosen() + " (" + chosenModel() + ")" : chosen()) + "...";
+    setBusy(session, true, initialNote);
+    refreshStatusNote();
+    session.timer = setTimeout(() => tick(session), 400);
   }
-  async function tick() {
+  async function tick(session) {
+    if (!session.jobId)
+      return;
     let j;
     try {
-      j = await api("/api/agent/job");
+      j = await api("/api/agent/job?id=" + session.jobId);
     } catch (e) {
-      timer = null;
+      if (!session.jobId)
+        return;
+      session.timer = null;
       if (e.body && "running" in e.body) {
-        await finish(e.body);
+        await finish(session, e.body);
+        refreshStatusNote();
         return;
       }
-      setBusy(false);
-      resetHint();
-      setStatusNote("");
-      showErr(e.message);
-      box.hidden = false;
+      setBusy(session, false);
+      resetHint(session);
+      refreshStatusNote();
+      showErr(session, e.message);
       return;
     }
+    if (!session.jobId)
+      return;
     if (j.running) {
-      const note = "Editing with " + j.harness + "... " + Math.round((j.ms || 0) / 1000) + "s";
-      setBusy(true, note);
-      setStatusNote(note);
-      timer = setTimeout(tick, 600);
+      session.harness = j.harness;
+      session.elapsed = Math.round((j.ms || 0) / 1000) + "s";
+      setBusy(session, true, "Editing with " + j.harness + "... " + session.elapsed);
+      refreshStatusNote();
+      session.timer = setTimeout(() => tick(session), 600);
       return;
     }
-    timer = null;
-    await finish(j);
+    session.timer = null;
+    await finish(session, j);
+    refreshStatusNote();
   }
-  async function finish(j) {
-    setStatusNote("");
-    const editTarget = target2;
-    setUndo(j);
+  function refreshStatusNote() {
+    const busy = [...sessions.values()].filter((s) => s.timer);
+    if (!busy.length) {
+      setStatusNote("");
+    } else if (busy.length === 1) {
+      const s = busy[0];
+      setStatusNote("Editing with " + (s.harness || chosen()) + "... " + (s.elapsed || ""));
+    } else {
+      setStatusNote(busy.length + " edits running...");
+    }
+  }
+  async function finish(session, j) {
+    const editTarget = session.target;
     if (j.error) {
-      setBusy(false);
-      resetHint();
-      showErr((j.harness || "agent") + ": " + j.error, [
+      setBusy(session, false);
+      resetHint(session);
+      showErr(session, (j.harness || "agent") + ": " + j.error, [
         ["stderr", (j.stderr || "").trim()],
         ["stdout", (j.stdout || j.log || "").trim()]
       ]);
       if (j.changed?.length)
         reloadWorkspace(null);
-      box.hidden = false;
       return;
     }
-    box.hidden = true;
-    setBusy(false);
-    target2 = null;
+    sessions.delete(session.id);
+    session.el.remove();
+    syncBoxVisibility();
+    syncAgentTargets();
     const changed = j.changed || [];
     if (!changed.length && j.tracked !== false) {
       showToast("✓", "Finished with no file changes");
@@ -4464,116 +4751,37 @@ Run the edit anyway?`)) {
     }
     if (!await reloadWorkspace(editTarget, "Edited"))
       return;
-    showToast("✓", (!changed.length ? "Reloaded the workspace" : changed.length === 1 ? "Updated " + changed[0] : "Updated " + changed.length + " files") + (j.undoable ? " · Undo in the footer" : ""));
+    showToast("✓", !changed.length ? "Reloaded the workspace" : changed.length === 1 ? "Updated " + changed[0] : "Updated " + changed.length + " files");
   }
-  async function reloadWorkspace(focus, what = "Changed") {
-    try {
-      await api("/api/reindex");
-      await reloadOpenTabs();
-      if (focus?.path) {
-        await openFile(focus.path, { line: focus.l1, push: false });
-      }
-      await drawTree("", treeEl, 0);
-    } catch (e) {
-      showToast("!", what + ", but the reload failed: " + e.message);
-      return false;
-    }
-    return true;
-  }
-  var undoBtn = $('[data-action="agent-undo"]');
-  var undoJob = null;
-  function setUndo(j) {
-    undoJob = j && j.undoable && j.changed?.length ? j : null;
-    if (!undoBtn)
-      return;
-    undoBtn.hidden = !undoJob;
-    if (undoJob) {
-      const n = undoJob.changed.length;
-      undoBtn.title = "Revert what " + undoJob.harness + " changed: " + undoJob.changed.join(", ");
-      undoBtn.querySelector(".footer-btn-label").textContent = n === 1 ? "Undo Edit" : "Undo Edit (" + n + ")";
-    }
-  }
-  async function undo() {
-    const j = undoJob;
-    if (!j || timer)
-      return;
-    const files = j.changed;
-    const list = files.slice(0, 12).join(`
-`) + (files.length > 12 ? `
-…and ` + (files.length - 12) + " more" : "");
-    if (!confirm("Revert what " + j.harness + ` changed?
-
-` + list))
-      return;
-    let res;
-    try {
-      res = await apiPost("/api/agent/undo");
-    } catch (e) {
-      if (!/changed since/.test(e.message) || !confirm(e.message + `.
-
-Undo anyway and lose those later changes?`)) {
-        showToast("!", e.message);
-        if (!/changed since/.test(e.message))
-          setUndo(null);
-        return;
-      }
+  var reloadChain = Promise.resolve();
+  function reloadWorkspace(focus, what = "Changed") {
+    const run = async () => {
       try {
-        res = await apiPost("/api/agent/undo", { force: 1 });
-      } catch (e2) {
-        showToast("!", e2.message);
-        setUndo(null);
-        await reloadWorkspace(null, "Undo failed");
-        return;
+        await api("/api/reindex");
+        await reloadOpenTabs();
+        if (focus?.path) {
+          await openFile(focus.path, { line: focus.l1, push: false });
+        }
+        await drawTree("", treeEl, 0);
+      } catch (e) {
+        showToast("!", what + ", but the reload failed: " + e.message);
+        return false;
       }
-    }
-    setUndo(null);
-    const undone = res.undone || files;
-    if (!await reloadWorkspace(null, "Undone"))
-      return;
-    showToast("✓", undone.length === 1 ? "Reverted " + undone[0] : "Reverted " + undone.length + " files");
+      return true;
+    };
+    const result = reloadChain.then(run, run);
+    reloadChain = result.then(() => {}, () => {});
+    return result;
   }
   function initAgent() {
-    if (!box)
+    if (!box || !tpl)
       return;
     setAgentHandler(openAgentEdit);
-    sendBtn.addEventListener("click", submit);
-    undoBtn?.addEventListener("click", undo);
-    api("/api/agent/job").then(setUndo, (e) => {
-      if (e.body)
-        setUndo(e.body);
-    });
-    if (footBtn && menuEl) {
-      footBtn.addEventListener("click", toggleMenu);
-      menuEl.addEventListener("click", async (e) => {
-        const b = e.target.closest("[data-pick]");
-        if (!b || S2.meta.agentPinned || timer)
-          return;
-        if (await select(b.dataset.pick, (msg) => showToast("!", msg)))
-          closeMenu();
-      });
-      document.addEventListener("mousedown", (e) => {
-        if (!menuEl.hidden && !menuEl.contains(e.target) && !footBtn.contains(e.target))
-          closeMenu();
-      });
-      addEventListener("keydown", (e) => {
-        if (e.key === "Escape")
-          closeMenu();
-      });
-      addEventListener("resize", closeMenu);
-    }
-    harnessBtn.addEventListener("click", () => {
-      if (!harnessBtn.disabled)
-        showPicker();
-    });
-    box.addEventListener("keydown", (e) => {
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeAgentEdit();
-      } else if (e.key === "Enter" && !e.shiftKey && !composeEl.hidden && !timer) {
-        e.preventDefault();
-        submit();
-      }
+    addEventListener("beforeunload", (e) => {
+      if (!anyInFlight())
+        return;
+      e.preventDefault();
+      e.returnValue = "";
     });
   }
 
@@ -4718,9 +4926,8 @@ Undo anyway and lose those later changes?`)) {
       const wrapPref = localStorage.getItem("rivo.wrap");
       S2.wrap = wrapPref !== null ? wrapPref === "true" : true;
       document.body.classList.toggle("word-wrap", S2.wrap);
-      const linesPref = localStorage.getItem("rivo.lineNumbers");
-      S2.lineNumbers = linesPref !== null ? linesPref === "true" : true;
-      document.body.classList.toggle("hide-lines", !S2.lineNumbers);
+      S2.lineNumbers = true;
+      document.body.classList.remove("hide-lines");
       const mdPref = localStorage.getItem("rivo.mdPreview");
       S2.mdPreview = mdPref !== null ? mdPref === "true" : true;
       updateEditorOptionControls();
@@ -4784,5 +4991,6 @@ Undo anyway and lose those later changes?`)) {
         }
       }, 150);
     }
+    loadAgentAsync();
   })();
 })();

@@ -17,7 +17,7 @@ import { initShortcuts } from './shortcuts.js';
 import { initTheme } from './theme.js';
 import { initMarkdown } from './markdown.js';
 import { initDiff } from './diff.js';
-import { initAgent, applyAgentMeta } from './agent.js';
+import { initAgent, applyAgentMeta, loadAgentAsync } from './agent.js';
 import { updateStatus, initMetrics, initStatusFit, updateMetricsDisplay } from './status.js';
 import { initDesktop } from './desktop.js';
 
@@ -52,10 +52,9 @@ initStatusFit();
     S.wrap = wrapPref !== null ? wrapPref === 'true' : true;
     document.body.classList.toggle('word-wrap', S.wrap);
 
-    // Restore line numbers (default ON)
-    const linesPref = localStorage.getItem('rivo.lineNumbers');
-    S.lineNumbers = linesPref !== null ? linesPref === 'true' : true;
-    document.body.classList.toggle('hide-lines', !S.lineNumbers);
+    // Line numbers are always ON
+    S.lineNumbers = true;
+    document.body.classList.remove('hide-lines');
 
     // Restore Markdown preview (default ON)
     const mdPref = localStorage.getItem('rivo.mdPreview');
@@ -118,4 +117,7 @@ initStatusFit();
       }
     }, 150);
   }
+
+  // Load harnesses and models asynchronously after the browser is loaded.
+  loadAgentAsync();
 })();

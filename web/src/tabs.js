@@ -27,7 +27,7 @@ export async function openFile(path, opts = {}) {
     try {
       j = await api('/api/file', { path, start, count: CHUNK });
     } catch (e) {
-      setStatusNote(path + ': ' + e.message);
+      setStatusNote(path + ': ' + e.message, 4000);
       return;
     }
     if (j.image) {
@@ -135,7 +135,7 @@ export async function reloadOpenTabs() {
 
     if (res.status !== 'fulfilled') {
       if (idx === S.active) {
-        setStatusNote(tgt.path + ': ' + (res.reason?.message || 'failed to load'));
+        setStatusNote(tgt.path + ': ' + (res.reason?.message || 'failed to load'), 4000);
       }
       continue;
     }
