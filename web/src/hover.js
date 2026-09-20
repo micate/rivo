@@ -45,6 +45,7 @@ export function onMove({ x, y, mod }) {
     else return; // still on the same word: nothing to do
   }
 
+  if (S.settings && (S.settings['lsp.hover.enabled'] === false || S.settings['lsp.enabled'] === false)) return;
   if (S.lsp.state !== 'ready' && S.lsp.state !== 'indexing') return;
   clearTimeout(hoverTimer);
   hoverTimer = setTimeout(() => hoverAt(x, y), HOVER_DELAY);

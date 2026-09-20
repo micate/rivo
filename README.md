@@ -57,6 +57,8 @@ The existing `make build` target continues to produce the browser/CLI version.
 
 ## Features
 
+> For in-depth guides and workflows for every feature, see the [Features Documentation](docs/features/README.md).
+
 - **Blazing Fast Navigation**: Fuzzy file search (`Cmd/Ctrl+P`), symbol outline (`Cmd/Ctrl+Shift+O`), and workspace regex search (`Cmd/Ctrl+Shift+F`) in milliseconds.
 - **Remote-First, Zero SSH Hassle**: Spin up on any remote server, cloud instance, or runner in < 1 ms. Inspect remote code in your local browser over a single port (Tailscale, WireGuard, reverse proxy, or tunnel) without SSH key setups, port forwarding churn, or remote extension daemons.
 - **Rich Syntax Highlighting**: Native tokenization for ~280 languages via Chroma with windowed rendering.
@@ -65,6 +67,7 @@ The existing `make build` target continues to produce the browser/CLI version.
 - **Rendered Markdown Preview**: Full GFM preview with Chroma-highlighted code fences; switch between preview and source with `Alt+M` while preserving scroll.
 - **Custom Themes**: 14 built-in themes (GitHub Dark, Tokyo Night, Catppuccin, Dracula, Gruvbox, Nord, Solarized, and more).
 - **Optional Language Server Protocol (LSP)**: Zero-config auto-detection (`gopls`, `rust-analyzer`, `pyright`, `typescript-language-server`, `clangd`) for Go-to-Definition (`F12`), Hover, references, and call trails. Falls back automatically to regex outlines.
+- **Settings & Configuration Modal**: Press `Cmd/Ctrl+,` or click the ⚙️ icon in the status bar to open the VS Code-style Settings editor. Configure editor typography, cursor styles, diff modes, themes, search behavior, file exclusions, and coding agents with live preview and raw JSON synchronization (`~/.rivo/settings.json`).
 - **Virtual DOM / Zero Overhead**: Opening a 400,000-line file costs the same as a 10-line file; only visible rows are mounted. Reclaims memory after 15 seconds of inactivity.
 - **Completely Self-Contained**: Single static binary embedding all web assets. Zero runtime dependencies, no Electron, no Node, no cloud phone-homes.
 
@@ -128,6 +131,54 @@ If the harness fails, the error appears inline under your instruction together w
 - Closing the tab while an edit is still running asks for confirmation first, so a harness is never abandoned mid-write with no way to see how it went.
 - Edits are accepted only from rivo's own page, opened by IP address or `localhost`. Through a hostname (reverse proxy, tunnel domain) they are refused. Anyone who can reach rivo by IP can run the harness as you, so keep `-host 0.0.0.0` to private networks.
 - Nothing runs until you pick a harness. `-agent` pins one for the session; `-no-agent` turns editing off.
+
+## Settings & Configuration (`settings.json`)
+
+rivo provides a built-in Settings editor modeled after VS Code. Settings are stored per-user in `~/.rivo/settings.json` (or `$XDG_CONFIG_HOME/rivo/settings.json`), keeping your workspace repository clean.
+
+### Opening Settings
+- Press **`Cmd+,`** (macOS) or **`Ctrl+,`** (Linux/Windows).
+- Click the **⚙️ Settings** button in the bottom status bar.
+- Open the Command Palette (`Cmd/Ctrl+Shift+P`) and choose **Preferences: Open Settings (UI)** or **Preferences: Open Settings (JSON)**.
+
+### Features
+- **UI & Raw JSON Modes**: Switch between the graphical form editor and raw JSON mode with syntax validation and live synchronization.
+- **Interactive Attribute Tags & Pills**: Every setting is tagged with its category, type, current active value, default value, and interactive pill buttons for allowed values (e.g. `[line]`, `[block]`, `[underline]` for cursor styles; `[true]`, `[false]` for toggles; numeric ranges and presets). Clicking any pill applies that value immediately.
+- **Live Preview Without Reload**: Font sizes, line heights, cursor animations, themes, word wrapping, diff layouts, and git gutter indicators apply in real time without refreshing the page.
+- **One-Click Reset**: Any modified setting displays a `Modified` badge and a `Reset` button to restore its factory default.
+
+### Key Configurable Settings
+
+| Setting Key | Default | Allowed Values / Options | Description |
+| --- | --- | --- | --- |
+| `editor.fontSize` | `13.5` | `9.0` – `32.0` (px) | Viewer font size |
+| `editor.fontFamily` | JetBrains Mono stack | CSS font stack | Viewer font family stack |
+| `editor.lineHeight` | `21.0` | `14.0` – `48.0` (px) | Viewer line height |
+| `editor.tabSize` | `4` | `2`, `4`, `8` | Number of spaces per tab |
+| `editor.wordWrap` | `"on"` | `"on"`, `"off"` | Soft wrap lines at editor boundary |
+| `editor.lineNumbers` | `"on"` | `"on"`, `"off"` | Line numbers in gutter |
+| `editor.cursorStyle` | `"line"` | `"line"`, `"block"`, `"underline"` | Cursor style |
+| `editor.cursorBlinking` | `"smooth"` | `"blink"`, `"smooth"`, `"solid"` | Cursor animation style |
+| `editor.renderLineHighlight` | `"line"` | `"line"`, `"none"` | Current line highlight |
+| `editor.occurrencesHighlight` | `true` | `true`, `false` | Highlight occurrences of selected word |
+| `editor.scrollBeyondLastLine` | `true` | `true`, `false` | Allow scrolling past file end |
+| `editor.bracketPairColorization` | `true` | `true`, `false` | Rainbow bracket pairs and bracket matching |
+| `workbench.colorTheme` | `"github-dark"` | 14 built-in themes | Workbench color theme |
+| `diffEditor.renderSideBySide` | `true` | `true`, `false` | Split vs. unified diff view |
+| `diffEditor.ignoreTrimWhitespace` | `true` | `true`, `false` | Ignore leading/trailing whitespace diffs |
+| `git.gutterIndicators` | `true` | `true`, `false` | Gutter change indicators |
+| `explorer.compactFolders` | `true` | `true`, `false` | Collapse single-child directory chains |
+| `explorer.autoReveal` | `true` | `true`, `false` | Auto-scroll to active file in tree |
+| `files.exclude` | `**/.git, **/node_modules...` | Glob patterns | Exclude patterns from trees and searches |
+| `search.smartCase` | `true` | `true`, `false` | Case-insensitive when lowercase; sensitive when uppercase |
+| `search.maxResults` | `1000` | `50` – `10000` | Maximum search results |
+| `lsp.enabled` | `true` | `true`, `false` | Master switch for language servers |
+| `lsp.hover.enabled` | `true` | `true`, `false` | Hover documentation cards |
+| `agent.harness` | `""` | `claude`, `gemini`, `agy`, etc. | Preferred coding agent harness |
+| `agent.timeoutSeconds` | `120` | `10` – `600` (s) | Max execution time for agent edits |
+| `agent.autoAcceptEdits` | `false` | `true`, `false` | Auto-confirm agent diffs |
+| `editor.vimMode` | `false` | `true`, `false` | Vim modal keybindings (Normal/Visual/Motions) |
+
 
 ## Why a Dedicated Code Viewer?
 
@@ -235,6 +286,7 @@ rivo --update
 
 | Key                                                    | Action                                                                                     |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `Cmd/Ctrl+,`                                           | Open Settings (UI)                                                                         |
 | `Cmd/Ctrl+K`                                           | Universal palette / quick open                                                             |
 | `Cmd/Ctrl+P`                                           | Go to file                                                                                 |
 | `Cmd/Ctrl+Shift+P`                                     | Command palette                                                                            |
@@ -346,7 +398,7 @@ For comprehensive technical deep-dives into the architecture, indexing, virtuali
 - `search.go` / `fuzzy.go`: High-performance substring and fuzzy file/symbol matching algorithms.
 - `lsp.go` / `lspnav.go` / `calls.go`: Lightweight JSON-RPC client communicating with local language servers over stdio, plus definitions, references and call trails.
 - `lspservers.go` / `lspsetup.go`: Language server registry, discovery, and install on request.
-- `agent.go` / `settings.go`: Coding harness discovery and dispatch, change detection, and the remembered harness choice.
+- `agent.go` / `settings.go`: Coding harness discovery and dispatch, change detection, user configuration store (`~/.rivo/settings.json`), and settings schema validation.
 - `web/`: Native zero-dependency ES module frontend (custom virtual scroll, syntax highlight rendering, tab manager).
 - `web/themes/`: One CSS file per colour theme, joined by the server into `/static/themes.css`. Token reference in [Styling & Themes](docs/internals/styling-and-themes.md).
 

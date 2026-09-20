@@ -28,7 +28,8 @@ Whenever modifying, adding, or refactoring code in this repository, you must aud
 | Frontend UI / Virtualization         | `web/app.js`, `web/index.html`, `web/style.css`                  | [`docs/internals/editor-virtualization.md`](../internals/editor-virtualization.md), [`README.md`](../../README.md)|
 | Markdown Preview                     | `markdown.go`, `web/src/markdown.js`                             | [`docs/internals/markdown.md`](../internals/markdown.md), [`docs/internals/styling-and-themes.md`](../internals/styling-and-themes.md) |
 | Themes / Colour Tokens               | `web/themes/*.css`, `web/style.css`, `web/src/theme.js`          | [`docs/internals/styling-and-themes.md`](../internals/styling-and-themes.md)                                    |
-| CLI Flags / Configuration            | `main.go`                                                        | [`README.md`](../../README.md)                                                                                  |
+| User-Facing Features / Workflows    | All features, UX, and controls                                   | [`docs/features/README.md`](../features/README.md)                                                               |
+| CLI Flags / Configuration            | `main.go`, `settings.go`                                         | [`docs/features/settings-and-configuration.md`](../features/settings-and-configuration.md), [`README.md`](../../README.md)|
 | Performance Metrics / Scripts        | `benchmark.sh`                                                   | [`BENCHMARKS.md`](../../BENCHMARKS.md)                                                                           |
 | Release Workflow                     | `Makefile`, `build.sh`, `scripts/build-web.js`                   | [`PUBLISHING.md`](../../PUBLISHING.md)                                                                           |
 

@@ -7,6 +7,14 @@ export function updateStatus() {
   const sizeEl = $('#st-size');
   if (sizeEl) sizeEl.textContent = d ? fmtBytes(d.size) : '';
 
+  if (d && d.isImage) {
+    const posEl = $('#st-pos');
+    if (posEl) {
+      const zoomText = d.imageFit ? `Fit (${Math.round((d.imageScale || 1) * 100)}%)` : `${Math.round((d.imageScale || 1) * 100)}%`;
+      posEl.textContent = d.imageMeta ? `${d.imageMeta.width} × ${d.imageMeta.height} px · ${zoomText}` : zoomText;
+    }
+  }
+
   const isMd = !!(d && d.markdown), shown = previewing(d);
   const mdBtn = $('[data-action="md-preview"]');
   if (mdBtn) {
@@ -20,19 +28,30 @@ export function updateStatus() {
     for (const b of sw.children) b.classList.toggle('on', isMd && (b.dataset.md === 'preview') === shown);
   }
 
+  const isCode = d && !d.isImage;
+  const inGit = !!S.meta?.git;
   const hasDiff = !!(d && d.diffAvailable);
   const isDiffOn = !!(d && d.diffMode);
   const currentLayout = (d && d.diffMode) || layoutPref();
   const dsw = $('#diff-switch');
   if (dsw) {
-    dsw.hidden = !hasDiff;
+    const showSwitch = inGit && isCode;
+    dsw.hidden = !showSwitch;
     document.body.classList.toggle('diff-tab', hasDiff);
     const btn = $('#diff-btn');
     if (btn) {
+      btn.disabled = !hasDiff;
+      btn.classList.toggle('disabled', !hasDiff);
       btn.classList.toggle('on', hasDiff && isDiffOn);
-      btn.title = withKeys(`Show changes against HEAD, ${currentLayout === 'unified' ? 'unified' : 'split'} ({Mod+D})`);
+      btn.title = hasDiff
+        ? withKeys(`Show changes against HEAD, ${currentLayout === 'unified' ? 'unified' : 'split'} ({Mod+D})`)
+        : 'There are no git modified files.';
     }
-    $('#diff-source')?.classList.toggle('on', hasDiff && !isDiffOn);
+    const srcBtn = $('#diff-source');
+    if (srcBtn) {
+      srcBtn.classList.toggle('on', !hasDiff || !isDiffOn);
+      srcBtn.title = withKeys('Show the file ({Mod+D})');
+    }
     const menuItems = dsw.querySelectorAll('.diff-menu-item');
     for (const item of menuItems) {
       item.classList.toggle('active', item.dataset.diffOpt === currentLayout);

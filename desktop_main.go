@@ -59,6 +59,9 @@ func (s *desktopSession) close() {
 	s.closeOnce.Do(func() {
 		// Close synchronously: WindowClosing may be the final event before the
 		// application process exits, so cleanup must not be left in a goroutine.
+		if s.server != nil && s.server.gitWatcher != nil {
+			s.server.gitWatcher.Stop()
+		}
 		if s.agent != nil {
 			s.agent.Close()
 		}
@@ -355,8 +358,7 @@ func (m *desktopManager) touchRecent(path string) {
 			break
 		}
 	}
-	s.RecentProjects = recent
-	_ = writeSettings(s)
+	_ = updateSettingsMap(map[string]any{"recentProjects": recent})
 }
 
 func (m *desktopManager) removeRecent(path string) {
@@ -367,15 +369,16 @@ func (m *desktopManager) removeRecent(path string) {
 			filtered = append(filtered, item)
 		}
 	}
-	s.RecentProjects = filtered
 	open := s.OpenProjects[:0]
 	for _, item := range s.OpenProjects {
 		if item != path {
 			open = append(open, item)
 		}
 	}
-	s.OpenProjects = open
-	_ = writeSettings(s)
+	_ = updateSettingsMap(map[string]any{
+		"recentProjects": filtered,
+		"openProjects":   open,
+	})
 }
 
 func (m *desktopManager) openProjectPaths() []string {
@@ -394,9 +397,7 @@ func (m *desktopManager) openProjectPaths() []string {
 }
 
 func (m *desktopManager) saveOpenProjects() {
-	s := readSettings()
-	s.OpenProjects = m.openProjectPaths()
-	_ = writeSettings(s)
+	_ = updateSettingsMap(map[string]any{"openProjects": m.openProjectPaths()})
 }
 
 func (m *desktopManager) beginQuit() {

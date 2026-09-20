@@ -13,6 +13,8 @@ import { showCalls, openLspSetup } from './calls.js';
 import { showHelp } from './shortcuts.js';
 import { listThemes, currentTheme, setTheme, cycleTheme } from './theme.js';
 import { togglePreview } from './markdown.js';
+import { openSettings } from './settings.js';
+import { showVimHelp, isVimEnabled, setVimModeEnabled } from './vim.js';
 
 export const overlay = $('#overlay');
 export const palInput = $('#pal');
@@ -20,6 +22,8 @@ export const palList = $('#pal-list');
 export let pal = null;
 
 export const COMMANDS = [
+  { name: withKeys('Preferences: Open Settings (UI) ({Mod+,})'), run: () => openSettings('ui') },
+  { name: 'Preferences: Open Settings (JSON)', run: () => openSettings('json') },
   { name: 'Go to File…', run: () => openPalette('file') },
   { name: 'Go to Symbol in File…', run: () => openPalette('symbol') },
   { name: 'Go to Line…', run: () => openPalette('line') },
@@ -44,6 +48,8 @@ export const COMMANDS = [
   { name: 'Close Tab', run: () => { if (S.active >= 0) closeTab(S.active); } },
   { name: 'Close All Tabs', run: () => { while (S.tabs.length) closeTab(0); } },
   { name: withKeys('Reopen Closed Tab ({Alt+Shift+T})'), run: () => reopenClosedTab() },
+  { name: 'Preferences: Toggle Vim Keybindings', run: () => setVimModeEnabled(!isVimEnabled(), true) },
+  { name: 'Help: Vim Keybindings Cheat Sheet', run: showVimHelp },
   { name: 'Keyboard Shortcuts', run: showHelp },
 ];
 

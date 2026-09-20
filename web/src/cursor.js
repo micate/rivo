@@ -71,7 +71,7 @@ export function colAtPoint(x, y) {
 }
 
 /* Keep the caret inside the horizontally scrolled area when it moves. */
-function revealCaretX(x) {
+export function revealCaretX(x) {
   const d = doc_();
   if (x == null || S.wrap || !d) return;
   const g = rowFor(d.cur)?.querySelector('.g');

@@ -29,7 +29,26 @@ export function toggleWordWrap(forced) {
   render();
 }
 
-export function toggleLineNumbers() {}
+export function toggleLineNumbers(forced) {
+  S.lineNumbers = typeof forced === 'boolean' ? forced : !S.lineNumbers;
+  document.body.classList.toggle('hide-lines', !S.lineNumbers);
+  layout();
+  render();
+}
+
+export function applyEditorTypography(fontSize, fontFamily, lineHeight, tabSize) {
+  if (fontSize) document.documentElement.style.setProperty('--fs', fontSize + 'px');
+  if (fontFamily) document.documentElement.style.setProperty('--mono', fontFamily);
+  if (lineHeight) {
+    document.documentElement.style.setProperty('--lh', lineHeight + 'px');
+  } else if (fontSize) {
+    document.documentElement.style.setProperty('--lh', Math.round(fontSize * 1.5) + 'px');
+  }
+  if (tabSize) document.documentElement.style.setProperty('--tab-size', tabSize);
+  measure();
+  layout();
+  render();
+}
 
 export function updateEditorOptionControls() {
   const wrapBtn = $('[data-action="wrap"]');
@@ -60,6 +79,7 @@ export function paint() {
     let rc = 'row', gc = 'g';
     if (n === d.cur) rc += ' cur';
     if (agentRanges.some(r => n >= r.l1 && n <= r.l2)) rc += ' agent-sel';
+    if (agentRanges.some(r => n === r.l1)) rc += ' agent-anchor';
     if (gut) {
       const m = gut.marks.get(n);
       if (m) gc += m === 'add' ? ' gut-add' : ' gut-mod';

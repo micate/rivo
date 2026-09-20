@@ -39,10 +39,11 @@ func useDiskAssets(dir string) error {
 }
 
 type Server struct {
-	ix    *Index
-	lsp   *lspManager
-	agent *agentManager // nil unless main wires editing for this session
-	mux   *http.ServeMux
+	ix         *Index
+	lsp        *lspManager
+	agent      *agentManager // nil unless main wires editing for this session
+	gitWatcher *GitWatcher
+	mux        *http.ServeMux
 
 	lastReq atomic.Int64 // unix nanos of the most recent request
 }
@@ -52,6 +53,8 @@ func NewServer(ix *Index, lsp *lspManager) *Server {
 		lsp = newLSPManager(ix.Root(), false)
 	}
 	s := &Server{ix: ix, lsp: lsp, mux: http.NewServeMux()}
+	s.gitWatcher = NewGitWatcher(ix)
+	s.gitWatcher.Start(context.Background())
 	sub, _ := fs.Sub(assets, "web")
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
 	s.mux.HandleFunc("/static/themes.css", s.handleThemes)
@@ -66,6 +69,8 @@ func NewServer(ix *Index, lsp *lspManager) *Server {
 	s.mux.HandleFunc("/api/markdown", s.handleMarkdown)
 	s.mux.HandleFunc("/api/diff", s.handleDiff)
 	s.mux.HandleFunc("/api/gutter", s.handleGutter)
+	s.mux.HandleFunc("/api/git/stream", s.handleGitStream)
+	s.mux.HandleFunc("/api/git/refresh", s.handleGitRefresh)
 	s.mux.HandleFunc("/api/search", s.handleSearch)
 	s.mux.HandleFunc("/api/outline", s.handleOutline)
 	s.mux.HandleFunc("/api/def", s.handleDef)
@@ -82,8 +87,10 @@ func NewServer(ix *Index, lsp *lspManager) *Server {
 	s.mux.HandleFunc("/api/agent/harnesses", s.handleAgentHarnesses)
 	s.mux.HandleFunc("/api/agent/select", s.handleAgentSelect)
 	s.mux.HandleFunc("/api/agent/edit", s.handleAgentEdit)
+	s.mux.HandleFunc("/api/agent/batch", s.handleAgentBatchEdit)
 	s.mux.HandleFunc("/api/agent/job", s.handleAgentJob)
 	s.mux.HandleFunc("/api/agent/cancel", s.handleAgentCancel)
+	s.mux.HandleFunc("/api/settings", s.handleSettings)
 	s.lastReq.Store(time.Now().UnixNano())
 	go s.scavenge()
 	return s
@@ -190,7 +197,16 @@ func fail(w http.ResponseWriter, code int, msg string) {
 // SetAgent makes editing through a coding harness available. Unavailable
 // unless main wires it; available still means nothing runs until a harness is
 // picked, in the UI or with -agent.
-func (s *Server) SetAgent(a *agentManager) { s.agent = a }
+func (s *Server) SetAgent(a *agentManager) {
+	s.agent = a
+	if a != nil {
+		a.onEdit = func() {
+			if s.gitWatcher != nil {
+				s.gitWatcher.Trigger()
+			}
+		}
+	}
+}
 
 // agentHarnesses is the picker's list, empty when editing is unavailable.
 func (s *Server) agentHarnesses() []agentHarness {
@@ -239,6 +255,7 @@ func (s *Server) handleThemes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 	n, at, ms := s.ix.Stats()
+	gitCount, gitFiles := s.ix.GitChanges()
 	writeJSON(w, map[string]any{
 		"root":        s.ix.Root(),
 		"name":        filepath.Base(s.ix.Root()),
@@ -247,6 +264,8 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"builtAt":     at,
 		"ready":       s.ix.Ready(),
 		"git":         gitAvailable(s.ix.Root()),
+		"gitChanges":  gitCount,
+		"gitFiles":    gitFiles,
 		"lspServers":  s.lsp.Available(),
 		"metrics":     getProcessMetrics(),
 		"version":     version,
@@ -632,6 +651,57 @@ func (s *Server) handleGutter(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGitStream streams real-time git status notifications via Server-Sent Events (SSE).
+func (s *Server) handleGitStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	ch, cancel := s.gitWatcher.Subscribe()
+	defer cancel()
+
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if _, err := w.Write(msg); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
+// handleGitRefresh triggers an immediate git status check and returns the latest git summary.
+func (s *Server) handleGitRefresh(w http.ResponseWriter, r *http.Request) {
+	if s.gitWatcher != nil {
+		payload := s.gitWatcher.Refresh()
+		writeJSON(w, payload)
+		return
+	}
+	count, files := s.ix.GitChanges()
+	writeJSON(w, map[string]any{
+		"git":        gitAvailable(s.ix.Root()),
+		"gitChanges": count,
+		"gitFiles":   files,
+		"statuses":   s.ix.GitStatusMap(),
+	})
+}
+
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	q := r.URL.Query()
@@ -765,7 +835,76 @@ func (s *Server) handleDef(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReindex(w http.ResponseWriter, r *http.Request) {
+	EvictAll()
 	s.ix.Build()
+	if s.gitWatcher != nil {
+		s.gitWatcher.Trigger()
+	}
 	n, _, ms := s.ix.Stats()
-	writeJSON(w, map[string]any{"files": n, "indexMs": ms})
+	gitCount, gitFiles := s.ix.GitChanges()
+	writeJSON(w, map[string]any{"files": n, "indexMs": ms, "gitChanges": gitCount, "gitFiles": gitFiles})
+}
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, map[string]any{
+			"settings": readMergedSettingsMap(),
+			"defaults": defaultSettingsMap(),
+			"schema":   settingsSchema,
+			"raw":      readRawSettingsJSON(),
+			"path":     settingsPath(),
+		})
+	case http.MethodPost:
+		if !localPost(w, r) {
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
+		if err != nil {
+			fail(w, 400, "failed to read body")
+			return
+		}
+		var payload map[string]any
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &payload); err != nil {
+				fail(w, 400, "invalid JSON: "+err.Error())
+				return
+			}
+		} else {
+			payload = make(map[string]any)
+			for k, vs := range r.URL.Query() {
+				if len(vs) > 0 {
+					payload[k] = vs[0]
+				}
+			}
+		}
+
+		if rawStr, ok := payload["raw"].(string); ok {
+			if err := saveRawSettingsJSON([]byte(rawStr)); err != nil {
+				fail(w, 400, "invalid JSON in settings: "+err.Error())
+				return
+			}
+		} else {
+			if err := updateSettingsMap(payload); err != nil {
+				fail(w, 500, err.Error())
+				return
+			}
+		}
+
+		if s.agent != nil {
+			currentSettings := readSettings()
+			if currentSettings.Agent != "" && currentSettings.Agent != s.agent.Name() {
+				_ = s.agent.Select(currentSettings.Agent, s.agent.Model())
+			}
+		}
+
+		writeJSON(w, map[string]any{
+			"settings": readMergedSettingsMap(),
+			"raw":      readRawSettingsJSON(),
+			"path":     settingsPath(),
+			"ok":       true,
+		})
+	default:
+		fail(w, 405, "method not allowed")
+	}
 }

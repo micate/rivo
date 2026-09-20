@@ -1,11 +1,11 @@
 // web/src/main.js
 import { $, S, api, applyKeyLabels } from './state.js';
 import { measure, layout, render, initRenderer, updateEditorOptionControls } from './renderer.js';
-import { initTabs, openFile } from './tabs.js';
+import { initTabs, openFile, restoreWorkspaceTabs, switchTab } from './tabs.js';
 import { initCursor } from './cursor.js';
 import { initHover } from './hover.js';
 import { initSelectionBar } from './selbar.js';
-import { drawTree, treeEl, initTree, revealFile } from './tree.js';
+import { drawTree, treeEl, initTree, revealFile, refreshTree, restoreOpenDirs, setSidebarMode, updateSidebarToggleState } from './tree.js';
 import { initSearch } from './search.js';
 import { initOutline } from './outline.js';
 import { initPanels } from './panels.js';
@@ -18,7 +18,11 @@ import { initTheme } from './theme.js';
 import { initMarkdown } from './markdown.js';
 import { initDiff } from './diff.js';
 import { initAgent, applyAgentMeta, loadAgentAsync } from './agent.js';
-import { updateStatus, initMetrics, initStatusFit, updateMetricsDisplay } from './status.js';
+import { initMetrics, initStatusFit, updateMetricsDisplay, updateStatus } from './status.js';
+import { initSettings } from './settings.js';
+import { initVim } from './vim.js';
+import { initImageViewer } from './imageview.js';
+import { initGitStream } from './gitstream.js';
 import { initDesktop } from './desktop.js';
 
 // Initialize all subsystems
@@ -41,6 +45,9 @@ initDiff();
 initAgent();
 initMetrics();
 initStatusFit();
+initSettings();
+initVim();
+initImageViewer();
 
 // Bootstrap application lifecycle
 (async function boot() {
@@ -69,7 +76,7 @@ initStatusFit();
   measure();
   S.meta = await api('/api/meta');
   if (S.meta.metrics) updateMetricsDisplay(S.meta.metrics);
-  if (S.meta.git) { const b = $('#btn-changed'); if (b) b.hidden = false; }
+  updateSidebarToggleState();
   applyAgentMeta();
   document.title = S.meta.name + ' - Rivo';
   $('#root-name').textContent = S.meta.name;
@@ -78,8 +85,19 @@ initStatusFit();
     const emptyVerEl = $('#empty-ver');
     if (emptyVerEl) emptyVerEl.textContent = 'v' + S.meta.version;
   }
-  updateStatus();
-  await drawTree('', treeEl, 0);
+  try {
+    const savedDirs = JSON.parse(sessionStorage.getItem('rivo.openDirs') || '[]');
+    restoreOpenDirs(savedDirs);
+  } catch {}
+  await refreshTree();
+  initGitStream();
+
+  const hasGitChanges = !!(S.meta?.git && S.meta.gitChanges > 0);
+  if (hasGitChanges) {
+    await setSidebarMode('git');
+  } else {
+    setSidebarMode('files');
+  }
 
   const params = new URLSearchParams(window.location.search);
   const initialPath = params.get('path');
@@ -95,6 +113,20 @@ initStatusFit();
       const cleanUrl = u.pathname + (cleanSearch ? '?' + cleanSearch : '') + u.hash;
       window.history.replaceState({}, '', cleanUrl);
     } catch {}
+  } else {
+    const restored = await restoreWorkspaceTabs();
+    if (hasGitChanges) {
+      const hasActiveDiff = S.tabs[S.active]?.diffAvailable;
+      if (!hasActiveDiff) {
+        const changedTabIdx = S.tabs.findIndex(t => t.diffAvailable);
+        if (changedTabIdx >= 0) {
+          switchTab(changedTabIdx);
+        } else if (S.meta.gitFiles && S.meta.gitFiles.length > 0) {
+          await openFile(S.meta.gitFiles[0]);
+          await revealFile(S.meta.gitFiles[0]);
+        }
+      }
+    }
   }
 
   if (document.fonts && document.fonts.ready) {
